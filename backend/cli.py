@@ -1,4 +1,4 @@
-﻿"""Command line entry point.
+"""Command line entry point.
 
     python cli.py scan <path> [--ai] [--ai-review] [--out reports/] [--fail-on high]
     python cli.py scan <path> --diff-base origin/main --fail-on high      (CI: only changed files)
