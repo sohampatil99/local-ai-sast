@@ -15,7 +15,7 @@ code for logic flaws. No source code leaves the machine.
 - **Rule engine** for C/C++, PHP and Kotlin
 - **Incremental scans:** re-analyze only changed files (content hash, or `--diff-base` in CI) with the same results as a full scan; every scan lists new and fixed findings since the previous one
 - **Dependency check** against a bundled advisory table (OWASP A06)
-- **Local AI** (Ollama, `qwen2.5-coder:7b`): for high/critical findings the model reports where the value comes from and each check before the call; fixed rules decide the verdict and say why. Fixes become a git patch (dropped if the patched file does not parse). Also reviews route files for authorization/logic flaws
+- **Local AI** (Ollama, `qwen2.5-coder:7b`): for high/critical findings the model reports where the value comes from and each check before the call; fixed rules decide the verdict and say why. Fixes become a git patch (dropped if the patched file does not parse, or if the fix still hardcodes a secret, including `os.getenv("X", "literal")`). Findings with a proven path from user input are triaged first. Also reviews route files for authorization/logic flaws
 - **Reports:** HTML, PDF, JSON, SARIF 2.1.0, `.patch` (AI fixes); security score and grade. Secrets are masked in snippets and displayed diffs
 - **Dashboard** (Next.js + TypeScript + Tailwind + Recharts, served as static files): scan history, severity/OWASP/trend charts, searchable and filterable findings, verdict reasons, diffs with Copy patch
 - **CI:** `--fail-on high` exit code and an example GitHub Actions workflow
@@ -130,7 +130,8 @@ failures in about 4 minutes on a cold cache, AI text present in the HTML and SAR
 | Review 1 fixture `samples/review1-check` (input crossing files in Python and JS, a Go service) | 13/13, 0 false positives, 12 traced (before cross-file flow and the Go analyzer: 5/13, 2 false positives) |
 | Data-flow fixture `samples/flow-check` (bugs through helper functions + 12 safe look-alikes) | 9/9, 0 false positives, 9/9 traced (before cross-function taint: 2/9, 12 false positives) |
 | Real code re-run after cross-function taint (~159k LOC) | 27 findings; the 2 new ones are correct `sys.argv -> open()` traces in a pip helper, not exploitable |
-| Speed (static analysis) | pip (113k LOC) in 3.3-5.8 s depending on machine load |
+| Speed (static analysis) | pip (113k LOC) in about 5-6 s depending on machine load (5.2 s alone, up to 6.4 s at the end of a long run) |
+| Files saved with a UTF-8 byte-order mark | analyzed like any other (a copy of the test app with a BOM: 52 findings, same as without; 36 before the fix) |
 
 The fixture was written alongside the rules, so its score shows the detectors work as designed,
 not how well they generalise. The real-code run is the fairer signal.
@@ -176,6 +177,8 @@ samples/vuln-app intentionally vulnerable test project
 - Taint crosses files in Python and JavaScript (imports/require); Java and Go only within a file. JavaScript
   taint is tracked by variable name per file
 - C/C++, PHP and Kotlin use regex rules, not AST analysis
-- AI patches are suggestions: 4 of 12 on the fixture were wrong despite parsing
+- AI patches are suggestions: 4 of 12 on the fixture were wrong despite parsing. `benchmark/test_review_fixes.py`
+  checks the safeguards (triage order, rejecting patches that keep a secret)
+- The secret scanner itself does not flag `os.getenv("PASSWORD", "literal")` in your code; only the patch check uses that rule
 - The dependency advisory table is small and bundled; it is not a full vulnerability database
 - AI verdicts are advisory: findings are never hidden, only excluded from the score
