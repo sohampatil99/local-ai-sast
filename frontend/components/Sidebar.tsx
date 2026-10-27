@@ -7,6 +7,7 @@ export function NewScan({ onStarted }: { onStarted: (id: string) => void }) {
   const [target, setTarget] = useState("");
   const [ai, setAi] = useState(false);
   const [review, setReview] = useState(false);
+  const [incremental, setIncremental] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const zip = useRef<HTMLInputElement>(null);
@@ -25,7 +26,7 @@ export function NewScan({ onStarted }: { onStarted: (id: string) => void }) {
   return (
     <section className="rounded-card border border-line bg-surface p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-lilacInk">New scan</h2>
-      <form onSubmit={(e) => { e.preventDefault(); run(() => api.start(target, ai, review)); }} className="grid gap-3">
+      <form onSubmit={(e) => { e.preventDefault(); run(() => api.start(target, ai, review, incremental)); }} className="grid gap-3">
         <label htmlFor="target" className="text-xs text-muted">Local folder or Git URL</label>
         <input id="target" value={target} onChange={(e) => setTarget(e.target.value)} required autoComplete="off"
           placeholder="C:\path\to\repo"
@@ -37,6 +38,10 @@ export function NewScan({ onStarted }: { onStarted: (id: string) => void }) {
         <label className="flex items-center gap-2 text-sm">
           <input id="aiReview" type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} className="accent-[rgb(var(--citrine))]" />
           AI review for auth and logic flaws
+        </label>
+        <label className="flex items-center gap-2 text-sm" title="Re-analyze only files changed since the last scan of this folder">
+          <input id="incremental" type="checkbox" checked={incremental} onChange={(e) => setIncremental(e.target.checked)} className="accent-[rgb(var(--citrine))]" />
+          Only rescan changed files
         </label>
         <button type="submit" disabled={busy}
           className="rounded-lg bg-citrine px-3 py-2 text-sm font-semibold text-void transition hover:brightness-95 disabled:opacity-60">

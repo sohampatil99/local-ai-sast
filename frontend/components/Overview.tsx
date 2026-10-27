@@ -1,5 +1,5 @@
 "use client";
-import { api, SEVERITIES } from "@/lib/api";
+import { api, SEVERITIES, shortTime } from "@/lib/api";
 import type { ScanResult } from "@/lib/types";
 
 const SEV_TEXT: Record<string, string> = { critical: "text-crit", high: "text-high", medium: "text-med", low: "text-low" };
@@ -59,6 +59,43 @@ export function ScoreAndTiles({ r }: { r: ScanResult }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** New / fixed / unchanged against the previous scan of this target, and what an incremental scan reused. */
+export function SinceLastScan({ r }: { r: ScanResult }) {
+  const c = r.comparison;
+  if (!c) return null;
+  const inc = c.incremental;
+  return (
+    <section className="grid gap-3 rounded-card border border-lilac/40 bg-lilac/10 p-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <h3 className="text-sm font-semibold text-lilacInk">Since the scan of {shortTime(c.baseline_started_at)}</h3>
+        <span className="text-sm"><b className="text-xl tabular-nums text-crit">{c.new}</b> new</span>
+        <span className="text-sm"><b className="text-xl tabular-nums text-ok">{c.fixed}</b> fixed</span>
+        <span className="text-sm"><b className="text-xl tabular-nums">{c.existing}</b> unchanged</span>
+        {inc && (
+          <span className="ml-auto rounded-full border border-line bg-surface px-3 py-1 text-xs">
+            Incremental: re-analyzed {inc.rescanned} of {inc.rescanned + inc.reused_files} files
+            ({inc.changed.length} changed)
+          </span>
+        )}
+      </div>
+      {c.fixed_findings.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-sm text-muted">Fixed since last scan ({c.fixed_findings.length})</summary>
+          <ul className="mt-2 grid gap-1 text-sm">
+            {c.fixed_findings.map((f, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-ok/15 px-1.5 text-xs font-semibold text-ok">FIXED</span>
+                <span className="font-medium line-through decoration-ok/60">{f.title}</span>
+                <span className="font-mono text-xs text-muted">{f.file}:{f.line}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 

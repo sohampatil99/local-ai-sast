@@ -1,0 +1,67 @@
+[
+  {
+    "file": "app.py",
+    "line": 37,
+    "category": "cmdi"
+  },
+  {
+    "file": "db.js",
+    "line": 6,
+    "category": "sqli"
+  },
+  {
+    "file": "files.js",
+    "line": 5,
+    "category": "path_traversal"
+  },
+  {
+    "file": "net.py",
+    "line": 5,
+    "category": "ssrf"
+  },
+  {
+    "file": "render.py",
+    "line": 2,
+    "category": "xss"
+  },
+  {
+    "file": "service.go",
+    "line": 19,
+    "category": "sqli"
+  },
+  {
+    "file": "service.go",
+    "line": 26,
+    "category": "path_traversal"
+  },
+  {
+    "file": "service.go",
+    "line": 29,
+    "category": "cmdi"
+  },
+  {
+    "file": "service.go",
+    "line": 31,
+    "category": "xss"
+  },
+  {
+    "file": "service.go",
+    "line": 33,
+    "category": "ssrf"
+  },
+  {
+    "file": "service.go",
+    "line": 34,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "storage.py",
+    "line": 10,
+    "category": "path_traversal"
+  },
+  {
+    "file": "storage.py",
+    "line": 22,
+    "category": "sqli"
+  }
+]

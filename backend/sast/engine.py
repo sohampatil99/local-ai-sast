@@ -8,57 +8,102 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .ast_go import AVAILABLE as GO_AST_AVAILABLE
+from .ast_go import scan_go
 from .ast_java import _PARSER as JAVA_PARSER
 from .ast_java import AVAILABLE as JAVA_AST_AVAILABLE
 from .ast_java import scan_java
 from .ast_js import _PARSERS as JS_PARSERS
 from .ast_js import AVAILABLE as JS_AST_AVAILABLE
-from .ast_js import scan_js
-from .ast_python import scan_python
+from .ast_js import JSProject
+from .ast_python import PythonProject
 from .llm import FUNCTION_START
 from .deps import scan_dependencies
 from .discovery import discover
 from .models import SEVERITY_ORDER, Finding
 from .rules import scan_rules
+from .incremental import changed_since, compare, file_hashes, with_neighbours
 from .secret_scan import _match_line as match_secret
 from .secret_scan import mask, scan_secrets
 from .taxonomy import enrich
 
 CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1}
-DETECTOR_RANK = {"ast-python": 3, "ast-js": 3, "ast-java": 3, "secrets": 2, "rules": 1, "deps": 1, "ai": 0}
+DETECTOR_RANK = {"ast-python": 3, "ast-js": 3, "ast-java": 3, "ast-go": 3, "secrets": 2, "rules": 1, "deps": 1, "ai": 0}
 SEVERITY_WEIGHT = {"critical": 10, "high": 5, "medium": 2, "low": 1, "info": 0}
-CODE_LANGS = {"python", "javascript", "typescript", "java"}
+CODE_LANGS = {"python", "javascript", "typescript", "java", "go"}
 
 
-def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=None, scan_id=None):
+def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=None, scan_id=None,
+         baseline=None, incremental=False, changed_files=None):
+    """Scan `target`.
+
+    baseline: a previous scan result of the same target. Findings are then marked new/existing
+    and result["comparison"] lists what was fixed.
+    incremental: with a baseline, re-analyze only files whose content changed (plus files that
+    import them or that they import) and reuse the baseline's findings for the rest.
+    changed_files: re-analyze only these repo-relative paths (CI: files changed since a git ref).
+    """
     say = progress or (lambda msg: None)
     started = time.perf_counter()
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     say("Discovering files")
     repo = discover(target)
-    say(f"Scanning {len(repo.files)} files ({repo.total_loc} LOC)")
-
-    findings, texts = [], {}
+    hashes = file_hashes(repo)
+    texts, sources = {}, {}
     for sf in repo.files:
         try:
-            text = Path(sf.path).read_text(encoding="utf-8", errors="ignore")
+            sources[sf.rel] = Path(sf.path).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        lines = text.splitlines()
-        texts[sf.rel] = lines
+        texts[sf.rel] = sources[sf.rel].splitlines()
+
+    analyze, reused = {sf.rel for sf in repo.files}, []
+    inc = None
+    if changed_files is not None or (incremental and baseline and baseline.get("repo", {}).get("file_hashes")):
+        changed = (set(changed_files) & analyze) if changed_files is not None else changed_since(hashes, baseline)
+        analyze = with_neighbours(changed, repo, texts)
+        if baseline:  # keep the baseline's findings for files that were not re-analyzed
+            keep = (set(hashes) | set(repo.dependencies)) - analyze  # manifests are not source files
+            fields = set(Finding.__dataclass_fields__)
+            reused = [Finding(**{k: v for k, v in f.items() if k in fields}) for f in baseline.get("findings", [])
+                      if f["file"] in keep]
+        inc = {"mode": "git" if changed_files is not None else "content-hash", "changed": sorted(changed),
+               "rescanned": len(analyze), "reused_files": len(hashes) - len(analyze),
+               "reused_findings": len(reused)}
+        say(f"Incremental: {len(changed)} changed, re-analyzing {len(analyze)} of {len(repo.files)} files")
+    else:
+        say(f"Scanning {len(repo.files)} files ({repo.total_loc} LOC)")
+
+    findings = []
+    python = PythonProject()  # all Python files together, so taint can cross files
+    javascript = JSProject()
+    for sf in repo.files:
+        if sf.rel not in analyze or sf.rel not in sources:
+            continue
+        text, lines = sources[sf.rel], texts[sf.rel]
         findings += scan_secrets(sf, lines)
         if sf.language == "python":
-            findings += scan_python(sf, text, lines)
+            python.add(sf, text, lines)
         elif sf.language in {"javascript", "typescript"}:
-            findings += scan_js(sf, text, lines) if JS_AST_AVAILABLE else \
-                scan_rules(sf, lines, js_fallback=True)
+            if JS_AST_AVAILABLE:
+                javascript.add(sf, text, lines)
+            else:
+                findings += scan_rules(sf, lines, js_fallback=True)
         elif sf.language == "java" and JAVA_AST_AVAILABLE:
             findings += scan_java(sf, text, lines)
+        elif sf.language == "go" and GO_AST_AVAILABLE:
+            findings += scan_go(sf, text, lines)
         elif sf.language != "config":
             findings += scan_rules(sf, lines)
-    findings += scan_dependencies(repo.root, repo.dependencies)
-    findings = [enrich(f) for f in _dedupe(findings)]
+    findings += python.run()
+    findings += javascript.run()
+    if inc is None or set(repo.dependencies) & analyze or not baseline:
+        findings += scan_dependencies(repo.root, repo.dependencies)
+    else:  # no manifest changed: dependency advisories are the baseline's
+        findings += [f for f in reused if f.detector == "deps"]
+        reused = [f for f in reused if f.detector != "deps"]
+    findings = [enrich(f) for f in _dedupe(findings)] + reused
     static_seconds = time.perf_counter() - started
 
     ai_status = {"enabled": False, "detail": "AI analysis not requested"}
@@ -71,11 +116,14 @@ def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=No
             ai_status["triaged"] = _triage(llm, findings, texts, ai_limit, say)
             ai_status["patched"] = attach_patches(findings, texts)
         if ok and ai_review:
-            new = _review(llm, repo, texts, findings, say)
+            new = _review(llm, repo, texts, findings, say, only=analyze)
             ai_status["reviewed_files"] = new[0]
             findings += new[1]
 
     findings.sort(key=lambda f: (-SEVERITY_ORDER.get(f.severity, 0), f.file, f.line))
+    comparison = compare(findings, baseline) if baseline else None
+    if comparison is not None:
+        comparison["incremental"] = inc
     duration = time.perf_counter() - started
     say("Done")
     return {
@@ -90,7 +138,11 @@ def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=No
             "languages": repo.languages, "dependency_manifests": repo.dependencies,
             "js_engine": "tree-sitter" if JS_AST_AVAILABLE else "regex-fallback",
             "java_engine": "tree-sitter" if JAVA_AST_AVAILABLE else "regex-fallback",
+            "go_engine": "tree-sitter" if GO_AST_AVAILABLE else "regex-fallback",
+            "file_hashes": hashes,
         },
+        "incremental": inc,
+        "comparison": comparison,
         "ai": ai_status,
         "summary": summarize(findings),
         "findings": [f.to_dict() for f in findings],
@@ -192,7 +244,8 @@ def _dedupe(findings):
 
 
 def _triage(llm, findings, texts, limit, say):
-    queue = [f for f in findings if f.severity in {"critical", "high"} and f.detector != "deps"]
+    # Findings reused from a baseline scan keep their earlier AI result
+    queue = [f for f in findings if f.severity in {"critical", "high"} and f.detector != "deps" and not f.ai]
     queue.sort(key=lambda f: -SEVERITY_ORDER[f.severity])
     done = 0
     for i, f in enumerate(queue[:limit], 1):
@@ -207,9 +260,9 @@ def _triage(llm, findings, texts, limit, say):
     return done
 
 
-def _review(llm, repo, texts, findings, say, max_files=4):
+def _review(llm, repo, texts, findings, say, max_files=4, only=None):
     route_markers = ("@app.route", ".route(", "app.get(", "app.post(", "router.", "@router.", "@admin.")
-    candidates = [sf for sf in repo.files if sf.language in CODE_LANGS
+    candidates = [sf for sf in repo.files if sf.language in CODE_LANGS and (only is None or sf.rel in only)
                   and any(m in "\n".join(texts.get(sf.rel, [])) for m in route_markers)]
     # The model tends to restate nearby static findings a line or two off; keep only new territory
     existing = {}
@@ -243,11 +296,13 @@ def _review(llm, repo, texts, findings, say, max_files=4):
 def summarize(findings):
     by_sev = {s: 0 for s in ("critical", "high", "medium", "low")}
     by_cat, by_owasp, by_cwe, by_file, by_detector = {}, {}, {}, {}, {}
-    penalty = 0
+    penalty = new_count = 0
     for f in findings:
         if f.ai and f.ai.get("verdict") == "false_positive":
             continue
         by_sev[f.severity] = by_sev.get(f.severity, 0) + 1
+        if f.status == "new":
+            new_count += 1
         for bucket, key in ((by_cat, f.category), (by_owasp, f.owasp), (by_cwe, f.cwe),
                             (by_file, f.file), (by_detector, f.detector)):
             bucket[key] = bucket.get(key, 0) + 1
@@ -261,4 +316,5 @@ def summarize(findings):
         "by_cwe": by_cwe, "by_file": dict(sorted(by_file.items(), key=lambda kv: -kv[1])),
         "by_detector": by_detector, "security_score": score, "grade": grade,
         "secrets_exposed": by_cat.get("hardcoded_secret", 0),
+        "new_since_last": new_count,
     }

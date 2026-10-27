@@ -10,9 +10,10 @@ code for logic flaws. No source code leaves the machine.
 - **Discovery:** recursive walk, 15 languages, dependency manifests, skips vendored/binary files
 - **Secret detection:** provider patterns (AWS, GitHub, Stripe, Slack, Google, private keys, DB URLs) plus keyword assignments filtered by Shannon entropy; values are masked in reports
 - **Python AST analysis:** import resolution and taint tracking from request data to sinks (SQL, shell, eval, pickle/yaml, file paths, outbound URLs, HTML responses). Taint crosses function calls in the same file, and findings name the call chain (`report() -> load_report(report_name)`)
-- **JavaScript/TypeScript and Java AST analysis** with tree-sitter: string-built SQL, command execution, `eval`, `innerHTML`, reflected XSS, path traversal, SSRF, deserialization, weak crypto
+- **JavaScript/TypeScript, Java and Go AST analysis** with tree-sitter (JS/TS taint also follows `require`/`import` into other files): string-built SQL, command execution, `eval`, `innerHTML`, reflected XSS, path traversal, SSRF, deserialization, weak crypto
 - **Sanitizers and constants:** `int()`/`parseInt`/`Integer.parseInt` are safe everywhere, `shlex.quote` for shell, `html.escape` for HTML, `basename` for paths; strings built only from constants are not reported
-- **Rule engine** for C/C++, PHP, Go and Kotlin
+- **Rule engine** for C/C++, PHP and Kotlin
+- **Incremental scans:** re-analyze only changed files (content hash, or `--diff-base` in CI) with the same results as a full scan; every scan lists new and fixed findings since the previous one
 - **Dependency check** against a bundled advisory table (OWASP A06)
 - **Local AI** (Ollama, `qwen2.5-coder:7b`): for high/critical findings the model reports where the value comes from and each check before the call; fixed rules decide the verdict and say why. Fixes become a git patch (dropped if the patched file does not parse). Also reviews route files for authorization/logic flaws
 - **Reports:** HTML, PDF, JSON, SARIF 2.1.0, `.patch` (AI fixes); security score and grade. Secrets are masked in snippets and displayed diffs
@@ -42,6 +43,22 @@ ollama pull qwen2.5-coder:7b
 ```
 
 If Ollama is not running, scans still complete; the AI step is skipped and the report says so.
+
+### Incremental scans and new/fixed findings
+
+Every scan is compared with the previous scan of the same target: findings are marked new or
+existing, and the fixed ones are listed (dashboard: "Since the scan of ..."; CLI: `--baseline`).
+
+```powershell
+python backend\cli.py scan app --out reports --format json                       # first scan
+python backend\cli.py scan app --baseline reports\sast-report-<id>.json --incremental --new-only
+python backend\cli.py scan app --diff-base origin/main --fail-on high           # CI: only what a PR changed
+```
+
+An incremental scan re-analyzes changed files, the files that import them and everything those import,
+and reuses the previous findings (and AI verdicts) for the rest. `benchmark/run_incremental.py` checks it
+gives exactly the same findings as a full scan: on pip, changing one file re-analyzes 151 of 403 files in
+3.0 s instead of 5.8 s.
 
 ### Dashboard development
 
@@ -110,6 +127,7 @@ failures in about 4 minutes on a cold cache, AI text present in the HTML and SAR
 | Fixture false positives | 0 of 46 reported |
 | Real code: FastAPI, Starlette, Jinja2, httpx, pip (~158k LOC) | 25 findings, all genuine dangerous-API uses, none confirmed exploitable |
 | Second fixture `samples/lang-check` (TypeScript, PHP, Go, C++, Stripe/Slack/Google keys) | 20/20, 0 false positives |
+| Review 1 fixture `samples/review1-check` (input crossing files in Python and JS, a Go service) | 13/13, 0 false positives, 12 traced (before cross-file flow and the Go analyzer: 5/13, 2 false positives) |
 | Data-flow fixture `samples/flow-check` (bugs through helper functions + 12 safe look-alikes) | 9/9, 0 false positives, 9/9 traced (before cross-function taint: 2/9, 12 false positives) |
 | Real code re-run after cross-function taint (~159k LOC) | 27 findings; the 2 new ones are correct `sys.argv -> open()` traces in a pip helper, not exploitable |
 | Speed (static analysis) | pip (113k LOC) in 3.3-5.8 s depending on machine load |
@@ -155,8 +173,9 @@ samples/vuln-app intentionally vulnerable test project
 
 ## Limitations
 
-- Taint tracking crosses functions in one file, not files; JavaScript taint is tracked by variable name per file
-- C/C++, PHP, Go and Kotlin use regex rules, not AST analysis
+- Taint crosses files in Python and JavaScript (imports/require); Java and Go only within a file. JavaScript
+  taint is tracked by variable name per file
+- C/C++, PHP and Kotlin use regex rules, not AST analysis
 - AI patches are suggestions: 4 of 12 on the fixture were wrong despite parsing
 - The dependency advisory table is small and bundled; it is not a full vulnerability database
 - AI verdicts are advisory: findings are never hidden, only excluded from the score

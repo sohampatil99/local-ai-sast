@@ -19,6 +19,7 @@ SETS = {
     "extra": (ROOT / "annotated-extra", ROOT.parent / "samples" / "lang-check", ROOT / "expected_extra.json"),
     "flow": (ROOT / "annotated-flow", ROOT.parent / "samples" / "flow-check", ROOT / "expected_flow.json"),
     "ai": (ROOT / "annotated-ai", ROOT.parent / "samples" / "ai-holdout", ROOT / "expected_ai.json"),
+    "review1": (ROOT / "annotated-review1", ROOT.parent / "samples" / "review1-check", ROOT / "expected_review1.json"),
     "ai2": (ROOT / "annotated-ai2", ROOT.parent / "samples" / "ai-holdout-2", ROOT / "expected_ai2.json"),
 }
 

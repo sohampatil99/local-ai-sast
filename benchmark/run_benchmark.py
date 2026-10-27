@@ -74,6 +74,9 @@ def main():
     if (ROOT / "expected_flow.json").exists():
         # Input passed through helper functions, sanitizers and constant-only SQL
         report["accuracy_flow"] = accuracy(FIXTURE_FLOW, "expected_flow.json")
+    if (ROOT / "expected_review1.json").exists():
+        # Review 1 next steps: input crossing files (Python, JS) and the Go analyzer
+        report["accuracy_review1"] = accuracy(ROOT.parent / "samples" / "review1-check", "expected_review1.json")
     report["performance"] = [performance(Path(d)) for d in args.perf]
     Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))

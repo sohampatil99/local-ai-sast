@@ -37,6 +37,17 @@ export interface Finding {
   owasp: string;
   remediation: string;
   ai: AiResult | null;
+  status?: "new" | "existing" | "";
+}
+
+export interface Comparison {
+  baseline_id: string;
+  baseline_started_at: string;
+  new: number;
+  existing: number;
+  fixed: number;
+  fixed_findings: { title: string; severity: Severity; file: string; line: number; category: string }[];
+  incremental: { mode: string; changed: string[]; rescanned: number; reused_files: number; reused_findings: number } | null;
 }
 
 export interface Summary {
@@ -64,6 +75,8 @@ export interface ScanResult {
   summary: Summary;
   findings: Finding[];
   fix_patch?: boolean | string;
+  comparison?: Comparison | null;
+  incremental?: Comparison["incremental"];
 }
 
 export interface ScanListItem {

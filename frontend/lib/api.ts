@@ -14,11 +14,11 @@ export const api = {
   scans: () => call<ScanListItem[]>("/api/scans"),
   scan: (id: string) => call<ScanDetail>(`/api/scans/${id}`),
   remove: (id: string) => call<{ deleted: string }>(`/api/scans/${id}`, { method: "DELETE" }),
-  start: (target: string, ai: boolean, aiReview: boolean) =>
+  start: (target: string, ai: boolean, aiReview: boolean, incremental = false) =>
     call<{ id: string }>("/api/scans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, ai, ai_review: aiReview }),
+      body: JSON.stringify({ target, ai, ai_review: aiReview, incremental }),
     }),
   upload: (file: File, ai: boolean, aiReview: boolean) => {
     const fd = new FormData();

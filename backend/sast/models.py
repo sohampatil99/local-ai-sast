@@ -21,6 +21,8 @@ class Finding:
     owasp: str = ""
     remediation: str = ""
     ai: Optional[dict] = None
+    status: str = ""  # "new" or "existing" when compared with a previous scan
+    fingerprint: str = ""
 
     def key(self):
         return (self.file, self.line, self.category)

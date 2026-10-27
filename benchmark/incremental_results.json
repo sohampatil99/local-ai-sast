@@ -1,0 +1,45 @@
+[
+  {
+    "case": "vuln-app",
+    "files": 8,
+    "changed": [
+      "app.py",
+      "export.py"
+    ],
+    "re_analyzed": 2,
+    "identical_to_full_scan": true,
+    "new": 1,
+    "fixed": 1,
+    "unchanged": 51,
+    "seconds_incremental": 0.01,
+    "seconds_full": 0.02
+  },
+  {
+    "case": "review1-check",
+    "files": 9,
+    "changed": [
+      "storage.py"
+    ],
+    "re_analyzed": 5,
+    "identical_to_full_scan": true,
+    "new": 0,
+    "fixed": 0,
+    "unchanged": 13,
+    "seconds_incremental": 0.01,
+    "seconds_full": 0.01
+  },
+  {
+    "case": "pip",
+    "files": 403,
+    "changed": [
+      "_internal/exceptions.py"
+    ],
+    "re_analyzed": 151,
+    "identical_to_full_scan": true,
+    "new": 0,
+    "fixed": 0,
+    "unchanged": 18,
+    "seconds_incremental": 2.99,
+    "seconds_full": 5.82
+  }
+]

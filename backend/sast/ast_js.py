@@ -5,6 +5,7 @@ defined in the same file: a tainted argument taints the parameter, and a functio
 returns user input taints its callers. Constants, numeric conversions (parseInt, Number)
 and sanitizers (path.basename, escapeHtml, DOMPurify.sanitize) stop it.
 """
+import posixpath
 import re
 
 from .models import Finding
@@ -47,11 +48,14 @@ NO_TAINT = None
 
 
 class _JSAnalyzer:
-    def __init__(self, tree, src, source_file, lines):
+    def __init__(self, tree, src, source_file, lines, project=None):
         self.root = tree.root_node
         self.src = src
         self.sf = source_file
         self.lines = lines
+        self.project = project
+        self.modules = {}  # local name -> analyzer of a required/imported file ("files" = require("./files"))
+        self.imported = {}  # local name -> (analyzer, exported name) for destructured or named imports
         self.findings = []
         self.tainted = {}  # name -> frozenset of sink categories it is sanitized for
         self.values = {}  # name -> list of assigned expression nodes
@@ -109,9 +113,67 @@ class _JSAnalyzer:
             return [body]  # arrow function with an expression body
         return [r.named_children[0] for r in self.walk(body) if r.type == "return_statement" and r.named_children]
 
+    def collect_imports(self):
+        """require("./x") and import ... from "./x" of other files in the same scan."""
+        if self.project is None:
+            return
+        for n in self.walk():
+            if n.type == "variable_declarator":
+                name, value = n.child_by_field_name("name"), n.child_by_field_name("value")
+                spec = self._require_spec(value)
+                other = self.project.resolve(self, spec) if spec else None
+                if other is None or name is None:
+                    continue
+                if name.type == "identifier":
+                    self.modules[self.text(name)] = other
+                elif name.type == "object_pattern":
+                    for p in name.named_children:
+                        if p.type == "shorthand_property_identifier_pattern":
+                            self.imported[self.text(p)] = (other, self.text(p))
+                        elif p.type == "pair_pattern":
+                            k, v = p.child_by_field_name("key"), p.child_by_field_name("value")
+                            if k is not None and v is not None:
+                                self.imported[self.text(v)] = (other, self.text(k))
+            elif n.type == "import_statement":
+                src = n.child_by_field_name("source")
+                other = self.project.resolve(self, self.text(src).strip("'\"`")) if src is not None else None
+                if other is None:
+                    continue
+                for c in self.walk(n):
+                    if c.type == "import_specifier":
+                        k, alias = c.child_by_field_name("name"), c.child_by_field_name("alias")
+                        self.imported[self.text(alias or k)] = (other, self.text(k))
+                    elif c.type == "namespace_import":
+                        ident = next((x for x in c.named_children if x.type == "identifier"), None)
+                        if ident is not None:
+                            self.modules[self.text(ident)] = other
+
+    def _require_spec(self, value):
+        if value is None or value.type != "call_expression":
+            return None
+        fn, args = value.child_by_field_name("function"), self.call_args(value)
+        if fn is None or self.text(fn) != "require" or not args or args[0].type != "string":
+            return None
+        return self.text(args[0]).strip("'\"`")
+
     def callee(self, call):
+        """(analyzer, function node) for a call to a function of this file or of a required file."""
         fn = call.child_by_field_name("function")
-        return self.funcs.get(self.text(fn)) if fn is not None and fn.type == "identifier" else None
+        if fn is None:
+            return None
+        if fn.type == "identifier":
+            name = self.text(fn)
+            if name in self.funcs:
+                return self, self.funcs[name]
+            if name in self.imported:
+                other, exported = self.imported[name]
+                return (other, other.funcs[exported]) if exported in other.funcs else None
+        if fn.type == "member_expression":
+            obj, prop = fn.child_by_field_name("object"), fn.child_by_field_name("property")
+            if obj is not None and prop is not None and obj.type == "identifier" and self.text(obj) in self.modules:
+                other = self.modules[self.text(obj)]
+                return (other, other.funcs[self.text(prop)]) if self.text(prop) in other.funcs else None
+        return None
 
     def call_args(self, call):
         a = call.child_by_field_name("arguments")
@@ -140,7 +202,8 @@ class _JSAnalyzer:
                 return NO_TAINT if inner is None else inner | cleans
             target = self.callee(node)
             if target is not None:
-                return frozenset() if target in self.returns_source else NO_TAINT
+                owner, fn = target
+                return frozenset() if fn in owner.returns_source else NO_TAINT
         return self._merge(node.named_children)
 
     def _merge(self, nodes):
@@ -213,6 +276,12 @@ class _JSAnalyzer:
         return False
 
     def collect_vars(self):
+        self.setup_vars()
+        for _ in range(4):
+            if not self.step():
+                break
+
+    def setup_vars(self):
         assigns = []
         for n in self.walk():
             if n.type == "variable_declarator":
@@ -227,29 +296,34 @@ class _JSAnalyzer:
             self.values.setdefault(name, []).append(value)
         for _ in range(3):
             self.safe = {n for n, vals in self.values.items() if all(self.is_safe_value(v) for v in vals)}
-        calls = [n for n in self.walk() if n.type == "call_expression"]
-        for _ in range(4):
-            before = (len(self.tainted), len(self.returns_source))
-            for name, value in assigns:
-                info = self.taint_info(value)
-                if info is not None:
-                    prev = self.tainted.get(name)
-                    self.tainted[name] = info if prev is None else prev & info
-            for call in calls:
-                fn = self.callee(call)
-                if fn is None:
-                    continue
-                fname = self.text(call.child_by_field_name("function"))
-                for param, arg in zip(self.params(fn), self.call_args(call)):
-                    if param and param not in self.tainted and self.is_tainted(arg):
-                        self.tainted[param] = frozenset()
-                        self.origins[param] = f"{fname}({param}) is called with user input on line " \
-                                              f"{call.start_point[0] + 1}"
-            for fn in self.funcs.values():
-                if fn not in self.returns_source and any(self.is_tainted(r) for r in self.returns(fn)):
-                    self.returns_source.add(fn)
-            if (len(self.tainted), len(self.returns_source)) == before:
-                break
+        self.assigns = assigns
+        self.calls = [n for n in self.walk() if n.type == "call_expression"]
+
+    def step(self):
+        """One propagation round; True if this file (or a file it calls into) learned something."""
+        changed = False
+        before = (len(self.tainted), len(self.returns_source))
+        for name, value in self.assigns:
+            info = self.taint_info(value)
+            if info is not None:
+                prev = self.tainted.get(name)
+                self.tainted[name] = info if prev is None else prev & info
+        for call in self.calls:
+            target = self.callee(call)
+            if target is None:
+                continue
+            owner, fn = target
+            fname = self.text(call.child_by_field_name("function"))
+            where = f"line {call.start_point[0] + 1}" if owner is self else f"{self.sf.rel} line {call.start_point[0] + 1}"
+            for param, arg in zip(owner.params(fn), self.call_args(call)):
+                if param and param not in owner.tainted and self.is_tainted(arg):
+                    owner.tainted[param] = frozenset()
+                    owner.origins[param] = f"{fname}({param}) is called with user input on {where}"
+                    changed = changed or owner is not self
+        for fn in self.funcs.values():
+            if fn not in self.returns_source and any(self.is_tainted(r) for r in self.returns(fn)):
+                self.returns_source.add(fn)
+        return changed or (len(self.tainted), len(self.returns_source)) != before
 
     def via(self, node):
         names = {self.text(n) for n in self.walk(node) if n.type == "identifier"}
@@ -278,6 +352,9 @@ class _JSAnalyzer:
     def run(self):
         self.collect_functions()
         self.collect_vars()
+        return self.check()
+
+    def check(self):
         for n in self.walk():
             if n.type == "call_expression":
                 self.check_call(n)
@@ -343,6 +420,53 @@ class _JSAnalyzer:
         if name in FS_FUNCS and arg0 is not None and hit("path_traversal"):
             self.report(n, "JS-PATH", "path_traversal", "Path Traversal",
                         f"File path passed to {full}() is derived from user input.", True, via())
+
+
+class JSProject:
+    """All JavaScript/TypeScript files of one scan, so taint can follow require/import into other files."""
+
+    EXTS = ("", ".js", ".ts", ".mjs", ".cjs", ".jsx", ".tsx", "/index.js", "/index.ts")
+
+    def __init__(self):
+        self.analyzers = []
+        self.by_rel = {}
+
+    def add(self, source_file, text, lines):
+        lang = "tsx" if source_file.rel.endswith(".tsx") else source_file.language
+        parser = _PARSERS.get(lang)
+        if parser is None:
+            return
+        src = text.encode("utf-8")
+        a = _JSAnalyzer(parser.parse(src), src, source_file, lines, self)
+        self.analyzers.append(a)
+        self.by_rel[source_file.rel] = a
+
+    def resolve(self, importer, spec):
+        """The analyzer for a relative module specifier ("./files", "../lib/db") of `importer`."""
+        if not spec.startswith("."):
+            return None  # a package from node_modules
+        base = posixpath.normpath(posixpath.join(posixpath.dirname(importer.sf.rel), spec))
+        for ext in self.EXTS:
+            if base + ext in self.by_rel:
+                return self.by_rel[base + ext]
+        return None
+
+    def run(self):
+        for a in self.analyzers:
+            a.collect_functions()
+        for a in self.analyzers:
+            a.collect_imports()
+            a.setup_vars()
+        for _ in range(6):
+            changed = False
+            for a in self.analyzers:
+                changed |= a.step()
+            if not changed:
+                break
+        findings = []
+        for a in self.analyzers:
+            findings += a.check()
+        return findings
 
 
 def scan_js(source_file, text, lines):

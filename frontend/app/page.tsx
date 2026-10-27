@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Charts } from "@/components/Charts";
 import { Findings } from "@/components/Findings";
-import { ScanHeader, ScoreAndTiles, TopFiles } from "@/components/Overview";
+import { ScanHeader, ScoreAndTiles, SinceLastScan, TopFiles } from "@/components/Overview";
 import { History, NewScan } from "@/components/Sidebar";
 import { Panel, ShieldMark } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -127,6 +127,7 @@ export default function Dashboard() {
           {r && (
             <>
               <ScanHeader r={r} />
+              <SinceLastScan r={r} />
               <ScoreAndTiles r={r} />
               <Charts r={r} history={history} />
               <Findings key={r.id} findings={r.findings} initialOpen={focus} />

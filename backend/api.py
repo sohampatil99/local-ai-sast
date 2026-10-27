@@ -36,11 +36,25 @@ class ScanRequest(BaseModel):
     ai_review: bool = False
     model: str | None = None
     ai_limit: int = 15
+    incremental: bool = False  # re-analyze only files changed since the last scan of this target
 
 
-def _run(scan_id, target, opts, cleanup=None):
+def _previous(label):
+    """The latest finished scan of the same target, used as the baseline for new/fixed."""
+    for item in store.list(limit=200):
+        if item["target"] == label and item["status"] == "done":
+            full = store.get(item["id"])
+            return full.get("result") if full else None
+    return None
+
+
+def _run(scan_id, target, opts, cleanup=None, label=None):
     try:
-        result = scan(target, scan_id=scan_id, progress=lambda m: store.progress(scan_id, m), **opts)
+        baseline = _previous(label or target)
+        if opts.get("incremental") and baseline is None:
+            opts = {**opts, "incremental": False}  # first scan of this target: nothing to reuse
+        result = scan(target, scan_id=scan_id, progress=lambda m: store.progress(scan_id, m),
+                      baseline=baseline, **opts)
         store.finish(scan_id, result)
     except Exception as exc:
         store.fail(scan_id, f"{type(exc).__name__}: {exc}")
@@ -51,8 +65,10 @@ def _run(scan_id, target, opts, cleanup=None):
 
 def _start(target, opts, label=None, cleanup=None):
     scan_id = uuid.uuid4().hex[:12]
-    store.create(scan_id, label or target, datetime.now(timezone.utc).isoformat(timespec="seconds"))
-    threading.Thread(target=_run, args=(scan_id, target, opts, cleanup), daemon=True).start()
+    label = label or target
+    store.create(scan_id, label, datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    # _previous() only picks finished scans, so this scan's own "running" row is never its baseline
+    threading.Thread(target=_run, args=(scan_id, target, opts, cleanup, label), daemon=True).start()
     return {"id": scan_id, "status": "running"}
 
 
@@ -66,7 +82,8 @@ def health():
 
 @app.post("/api/scans")
 def create_scan(req: ScanRequest):
-    opts = {"ai": req.ai, "ai_review": req.ai_review, "model": req.model, "ai_limit": req.ai_limit}
+    opts = {"ai": req.ai, "ai_review": req.ai_review, "model": req.model, "ai_limit": req.ai_limit,
+            "incremental": req.incremental}
     target = req.target.strip().strip('"')
     if GIT_URL.match(target):
         dest = WORK / uuid.uuid4().hex[:12]

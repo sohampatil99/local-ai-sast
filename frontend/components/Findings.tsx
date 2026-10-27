@@ -10,6 +10,8 @@ export function Findings({ findings, initialOpen }: { findings: Finding[]; initi
   const [sev, setSev] = useState("");
   const [cat, setCat] = useState("");
   const [det, setDet] = useState("");
+  const [onlyNew, setOnlyNew] = useState(false);
+  const hasStatus = findings.some((f) => f.status);
   const [open, setOpen] = useState<string | null>(() => {
     const f = initialOpen ? findings.find((x) => `${x.file}:${x.line}` === initialOpen) : undefined;
     return f ? key(f) : null;
@@ -19,6 +21,7 @@ export function Findings({ findings, initialOpen }: { findings: Finding[]; initi
   const dets = useMemo(() => [...new Set(findings.map((f) => f.detector))].sort(), [findings]);
   const list = findings.filter((f) =>
     (!sev || f.severity === sev) && (!cat || f.category === cat) && (!det || f.detector === det) &&
+    (!onlyNew || f.status === "new") &&
     (!q || `${f.title} ${f.file} ${f.cwe} ${f.owasp} ${f.message}`.toLowerCase().includes(q.toLowerCase())));
 
   const select = "rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm";
@@ -26,7 +29,14 @@ export function Findings({ findings, initialOpen }: { findings: Finding[]; initi
     <Panel
       title={<>Findings <span className="font-normal text-muted">({list.length} of {findings.length})</span></>}
       aside={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {hasStatus && (
+            <label className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm">
+              <input id="onlyNew" type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)}
+                className="accent-[rgb(var(--citrine))]" />
+              Only new
+            </label>
+          )}
           <input id="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search file, title, CWE..."
             className={`${select} w-56 placeholder:text-muted/60`} />
           <select id="fSeverity" value={sev} onChange={(e) => setSev(e.target.value)} className={select}>
@@ -64,7 +74,12 @@ export function Findings({ findings, initialOpen }: { findings: Finding[]; initi
                     className={`cursor-pointer border-b border-line align-top transition hover:bg-raised ${isOpen ? "bg-raised" : ""}`}>
                     <td className="px-2 py-2.5"><SeverityPill severity={f.severity} /></td>
                     <td className="px-2 py-2.5">
-                      <div className="font-semibold">{f.title}</div>
+                      <div className="flex items-center gap-2 font-semibold">
+                        {f.title}
+                        {f.status === "new" && (
+                          <span className="rounded bg-citrine px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-void">New</span>
+                        )}
+                      </div>
                       <div className="text-xs text-muted">{f.detector} · confidence {f.confidence}</div>
                     </td>
                     <td className="px-2 py-2.5 font-mono text-[13px]">{f.file}:{f.line}</td>

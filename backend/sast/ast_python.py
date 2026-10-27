@@ -56,11 +56,83 @@ class _State:
         self.safe = set()  # names only ever assigned constants or numeric conversions
 
 
+class PythonProject:
+    """All Python files of one scan, so taint can follow calls from one file into another.
+
+    Shared facts are keyed by FunctionDef node, which is unique across files:
+    param_taint[fn] = {param: origin}, returns_source = functions returning user input,
+    and a lazily computed 'passthrough' (return value depends on the parameters).
+    """
+
+    def __init__(self):
+        self.analyzers = []
+        self.modules = {}  # dotted module name (and unambiguous suffixes) -> analyzer
+        self.param_taint = {}
+        self.returns_source = set()
+        self._passthrough = {}
+        self.owner = {}  # FunctionDef -> analyzer that defines it
+
+    def add(self, source_file, text, lines):
+        try:
+            tree = ast.parse(text, filename=source_file.rel)
+        except (SyntaxError, ValueError, RecursionError):
+            return
+        a = _Analyzer(tree, source_file, lines, self)
+        self.analyzers.append(a)
+
+    def module(self, dotted):
+        return self.modules.get(dotted)
+
+    def is_passthrough(self, fn):
+        if fn not in self._passthrough:
+            self._passthrough[fn] = False  # cycle guard: assume not while computing
+            a = self.owner[fn]
+            returns = [n.value for n in ast.walk(fn) if isinstance(n, ast.Return) and n.value is not None]
+            seeded = a.scope_state(fn, a.params(fn)) if returns else None
+            self._passthrough[fn] = bool(returns) and any(a.is_tainted(r, seeded) for r in returns)
+        return self._passthrough[fn]
+
+    def run(self):
+        names = {}
+        for a in self.analyzers:  # phase 1: index every file's functions before any analysis
+            a.collect_imports()
+            a.collect_functions()
+            for fn in a.funcs.values():
+                self.owner[fn] = a
+                self.param_taint[fn] = {}
+            mod = a.sf.rel[:-3].replace("/", ".") if a.sf.rel.endswith(".py") else a.sf.rel
+            if mod.endswith(".__init__"):
+                mod = mod[: -len(".__init__")]
+            parts = mod.split(".")
+            for i in range(len(parts)):  # pkg.sub.mod, sub.mod, mod: imports are resolved by their tail
+                names.setdefault(".".join(parts[i:]), []).append(a)
+        self.modules = {k: v[0] for k, v in names.items() if len(v) == 1}
+        for a in self.analyzers:  # phase 2: per-file facts that may consult other files
+            a.prepare()
+        if any(a.has_input for a in self.analyzers):  # nothing can be tainted if no file reads user input
+            for _ in range(6):
+                self._passthrough = {}
+                for a in self.analyzers:
+                    a.states = {}
+                changed = False
+                for a in self.analyzers:
+                    if a.active():
+                        changed |= a.propagate()
+                if not changed:
+                    break
+        findings = []
+        for a in self.analyzers:
+            a.states = {}
+            findings += a.check()
+        return findings
+
+
 class _Analyzer:
-    def __init__(self, tree, source_file, lines):
+    def __init__(self, tree, source_file, lines, project):
         self.tree = tree
         self.sf = source_file
         self.lines = lines
+        self.project = project
         self.aliases = {}
         self.findings = []
         self.parents = {}
@@ -68,11 +140,12 @@ class _Analyzer:
             for child in ast.iter_child_nodes(parent):
                 self.parents[child] = parent
         self.funcs = {}  # name -> FunctionDef, for unambiguous names in this file
-        self.param_taint = {}  # FunctionDef -> {param: "caller() -> callee(param)"}
-        self.returns_source = set()  # functions that return user input
-        self.passthrough = set()  # functions whose return value depends on their parameters
+        self.param_taint = project.param_taint  # FunctionDef -> {param: "caller() -> callee(param)"}
+        self.returns_source = project.returns_source  # functions (any file) that return user input
         self.module_consts = set()
         self.states = {}
+        self.calls = []
+        self.has_input = False
 
     # ---- name resolution -------------------------------------------------
     def collect_imports(self):
@@ -80,9 +153,10 @@ class _Analyzer:
             if isinstance(node, ast.Import):
                 for a in node.names:
                     self.aliases[a.asname or a.name.split(".")[0]] = a.name if a.asname else a.name.split(".")[0]
-            elif isinstance(node, ast.ImportFrom) and node.module:
+            elif isinstance(node, ast.ImportFrom):
                 for a in node.names:
-                    self.aliases[a.asname or a.name] = f"{node.module}.{a.name}"
+                    # "from . import storage" has no module: the imported name is the module itself
+                    self.aliases[a.asname or a.name] = f"{node.module}.{a.name}" if node.module else a.name
 
     def collect_functions(self):
         seen = {}
@@ -90,7 +164,6 @@ class _Analyzer:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 seen.setdefault(node.name, []).append(node)
         self.funcs = {name: nodes[0] for name, nodes in seen.items() if len(nodes) == 1}
-        self.param_taint = {fn: {} for fn in self.funcs.values()}
 
     def dotted(self, node):
         if isinstance(node, ast.Name):
@@ -105,13 +178,25 @@ class _Analyzer:
         return ""
 
     def resolve(self, call):
-        """The function in this file that `call` invokes: foo(...) or self.foo(...)."""
+        """The function `call` invokes: foo(...) or self.foo(...) in this file, or an imported
+        function of another file in the scan (storage.read_doc(...), or read_doc after a from-import)."""
         f = call.func
         if isinstance(f, ast.Name) and f.id not in self.aliases:
             return self.funcs.get(f.id)
         if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id in {"self", "cls"}:
             return self.funcs.get(f.attr)
+        name = self.dotted(f)
+        if "." in name:
+            mod, func = name.rsplit(".", 1)
+            other = self.project.module(mod)
+            if other is not None and other is not self:
+                return other.funcs.get(func)
         return None
+
+    def label(self, fn):
+        """Name of a function for call chains; prefixed with its file when it lives in another file."""
+        owner = self.project.owner.get(fn, self)
+        return fn.name if owner is self else f"{owner.sf.rel}:{fn.name}"
 
     @staticmethod
     def params(fn):
@@ -158,7 +243,8 @@ class _Analyzer:
             if callee is not None:
                 if callee in self.returns_source:
                     return frozenset()
-                return self._merge(args, st) if callee in self.passthrough else NO_TAINT
+                inner = self._merge(args, st)  # cheap; only ask the costly passthrough question if needed
+                return inner if inner is not None and self.project.is_passthrough(callee) else NO_TAINT
         return self._merge(list(ast.iter_child_nodes(node)), st)
 
     def _merge(self, nodes, st):
@@ -305,36 +391,36 @@ class _Analyzer:
             self.states[fn] = self.scope_state(fn, seed)
         return self.states[fn]
 
-    def propagate(self, calls):
-        """One round of cross-function propagation; returns True if anything new was learned."""
+    def active(self):
+        """Worth a propagation round: the file reads user input, or a caller passed it some."""
+        return self.has_input or any(self.param_taint.get(fn) for fn in self.funcs.values())
+
+    def propagate(self):
+        """One round of cross-function (and cross-file) propagation; True if anything new was learned."""
         changed = False
-        self.states = {}
         for fn in self.funcs.values():
-            returns = [n.value for n in ast.walk(fn) if isinstance(n, ast.Return) and n.value is not None]
-            if not returns:
+            if fn in self.returns_source:
                 continue
-            if fn not in self.returns_source:
-                base = self.scope_state(fn)
-                if any(self.is_tainted(r, base) for r in returns):
-                    self.returns_source.add(fn)
-                    changed = True
-            if fn not in self.passthrough:
-                seeded = self.scope_state(fn, self.params(fn))
-                if any(self.is_tainted(r, seeded) for r in returns):
-                    self.passthrough.add(fn)
-                    changed = True
-        for call, caller in calls:
+            # Only a function that reads input itself, or calls one that returns it, can return it
+            if fn not in self.fn_reads_input and not any(
+                    self.resolve(c) in self.returns_source for c in self.fn_calls.get(fn, ())):
+                continue
+            returns = [n.value for n in ast.walk(fn) if isinstance(n, ast.Return) and n.value is not None]
+            if returns and any(self.is_tainted(r, self.scope_state(fn)) for r in returns):
+                self.returns_source.add(fn)
+                changed = True
+        for call, caller in self.calls:
             callee = self.resolve(call)
             if callee is None:
                 continue
             st = self.state(caller)
             for param, arg in self.bind(call, callee):
                 if param not in self.param_taint[callee] and self.is_tainted(arg, st):
-                    where = f"{caller.name}()" if caller is not None else "module code"
-                    self.param_taint[callee][param] = f"{where} -> {callee.name}({param})"
+                    where = f"{caller.name}()" if caller is not None else f"{self.sf.rel} module code"
+                    if self.project.owner.get(callee, self) is not self and caller is not None:
+                        where = f"{self.sf.rel}:{caller.name}()"
+                    self.param_taint[callee][param] = f"{where} -> {self.label(callee)}({param})"
                     changed = True
-        if changed:
-            self.states = {}
         return changed
 
     def module_constants(self):
@@ -381,19 +467,19 @@ class _Analyzer:
         return cur
 
     # ---- checks ------------------------------------------------------------
-    def run(self):
-        self.collect_imports()
-        self.collect_functions()
+    def prepare(self):
         self.module_constants()
-        calls = [(n, self.enclosing_function(n)) for n in ast.walk(self.tree) if isinstance(n, ast.Call)]
-        has_input = any(self.is_source(n) for n, _ in calls) or \
-            any(self.is_source(n) for n in ast.walk(self.tree) if isinstance(n, (ast.Attribute, ast.Subscript))) or \
-            any(self._is_handler(fn) for fn in self.funcs.values())
-        if has_input:  # nothing can be tainted in a file that never reads user input
-            for _ in range(5):
-                if not self.propagate(calls):
-                    break
-        for node, fn in calls:
+        self.calls = [(n, self.enclosing_function(n)) for n in ast.walk(self.tree) if isinstance(n, ast.Call)]
+        self.fn_calls = {}
+        for call, fn in self.calls:
+            self.fn_calls.setdefault(fn, []).append(call)
+        self.fn_reads_input = {self.enclosing_function(n) for n in ast.walk(self.tree)
+                               if isinstance(n, (ast.Call, ast.Attribute, ast.Subscript)) and self.is_source(n)}
+        self.fn_reads_input |= {fn for fn in self.funcs.values() if self._is_handler(fn)}
+        self.has_input = bool(self.fn_reads_input)
+
+    def check(self):
+        for node, fn in self.calls:
             self.check_call(node, fn, self.state(fn))
         for node in ast.walk(self.tree):
             if isinstance(node, ast.Return) and node.value is not None:
@@ -503,8 +589,7 @@ class _Analyzer:
 
 
 def scan_python(source_file, text, lines):
-    try:
-        tree = ast.parse(text, filename=source_file.rel)
-    except (SyntaxError, ValueError, RecursionError):
-        return []
-    return _Analyzer(tree, source_file, lines).run()
+    """One file on its own (no cross-file flow); the engine uses PythonProject for a whole scan."""
+    project = PythonProject()
+    project.add(source_file, text, lines)
+    return project.run()

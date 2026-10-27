@@ -32,7 +32,7 @@
     "reported": 20,
     "detection_rate": 100.0,
     "false_positive_rate": 0.0,
-    "traced_from_user_input": 3,
+    "traced_from_user_input": 4,
     "missed": [],
     "false_positives": [],
     "dependency_advisories": 0,
@@ -67,45 +67,64 @@
       "xss": "2/2"
     }
   },
+  "accuracy_review1": {
+    "expected": 13,
+    "detected": 13,
+    "reported": 13,
+    "detection_rate": 100.0,
+    "false_positive_rate": 0.0,
+    "traced_from_user_input": 12,
+    "missed": [],
+    "false_positives": [],
+    "dependency_advisories": 0,
+    "by_category": {
+      "cmdi": "2/2",
+      "path_traversal": "3/3",
+      "sqli": "3/3",
+      "ssrf": "2/2",
+      "weak_crypto": "1/1",
+      "xss": "2/2"
+    }
+  },
   "performance": [
     {
       "target": ".venv\\Lib\\site-packages\\fastapi",
       "files": 52,
       "loc": 20193,
-      "seconds": 0.717,
-      "loc_per_second": 28163,
+      "seconds": 0.637,
+      "loc_per_second": 31700,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\starlette",
       "files": 36,
       "loc": 5879,
-      "seconds": 0.302,
-      "loc_per_second": 19467,
+      "seconds": 0.305,
+      "loc_per_second": 19275,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\jinja2",
       "files": 25,
       "loc": 11692,
-      "seconds": 0.457,
-      "loc_per_second": 25584,
+      "seconds": 0.5,
+      "loc_per_second": 23384,
       "findings": 8
     },
     {
       "target": ".venv\\Lib\\site-packages\\httpx",
       "files": 23,
       "loc": 7449,
-      "seconds": 0.311,
-      "loc_per_second": 23952,
+      "seconds": 0.327,
+      "loc_per_second": 22780,
       "findings": 1
     },
     {
       "target": ".venv\\Lib\\site-packages\\pip",
       "files": 403,
       "loc": 113694,
-      "seconds": 3.946,
-      "loc_per_second": 28812,
+      "seconds": 5.379,
+      "loc_per_second": 21137,
       "findings": 18
     }
   ]

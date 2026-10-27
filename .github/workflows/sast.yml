@@ -31,6 +31,22 @@ jobs:
           name: sast-report
           path: sast-out/*.html
 
+  changed-files:
+    # Pull requests: analyze only the files the PR changes (plus files they import or that import them)
+    # and fail on high/critical findings in them. Full scans still run on every push.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Scan changed files
+        run: python backend/cli.py scan backend --diff-base origin/${{ github.base_ref }} --fail-on high
+
   dashboard:
     # The Next.js dashboard must type-check and build to the static export the backend serves
     runs-on: ubuntu-latest
