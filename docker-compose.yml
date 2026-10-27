@@ -1,0 +1,45 @@
+# Dashboard + PostgreSQL in containers.
+#
+#   docker compose up -d --build            # http://127.0.0.1:8000
+#   SCAN_ROOT=C:\path\to\repo docker compose up -d     # folder to scan, mounted read-only at /scan
+#
+# The AI layer uses Ollama running on the host by default (so it can use your GPU):
+# OLLAMA_URL=http://host.docker.internal:11434. To run Ollama in a container instead
+# (CPU only unless you add GPU settings):
+#   docker compose --profile ai up -d
+#   docker compose exec ollama ollama pull qwen2.5-coder:7b
+#   OLLAMA_URL=http://ollama:11434 docker compose --profile ai up -d
+#
+# PDF export is unavailable in the container (it needs Edge/Chrome); HTML, JSON and SARIF work.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: sast
+      POSTGRES_PASSWORD: sast
+      POSTGRES_DB: sast
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sast -d sast"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./backend
+    restart: unless-stopped
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    environment:
+      SAST_DATABASE_URL: postgresql://sast:sast@db:5432/sast
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["${SCAN_ROOT:-./samples}:/scan:ro"]
+    depends_on:
+      db:
+        condition: service_healthy
+  ollama:
+    image: ollama/ollama
+    profiles: ["ai"]
+    volumes: [ollama:/root/.ollama]
+volumes:
+  pgdata:
+  ollama:

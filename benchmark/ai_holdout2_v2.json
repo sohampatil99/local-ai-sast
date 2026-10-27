@@ -1,0 +1,79 @@
+{
+  "summary": {
+    "prompt": "benchmark\\prompts\\triage_v2.txt",
+    "model": "qwen2.5-coder:7b",
+    "real_confirmed": {
+      "cases": 3,
+      "correct": 3,
+      "needs_review": 0
+    },
+    "safe_dismissed": {
+      "cases": 3,
+      "correct": 0,
+      "needs_review": 0
+    },
+    "accuracy": "3/6"
+  },
+  "cases": [
+    {
+      "file": "exports.py",
+      "line": 20,
+      "label": "safe",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": false,
+      "explanation": "The value of `kind` is directly taken from the user input and passed to `os.system()`, which can lead to OS command injection if `kind` contains malicious content."
+    },
+    {
+      "file": "exports.py",
+      "line": 29,
+      "label": "real",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The value of `kind` is directly derived from user input and passed to `os.system()`, which is vulnerable to OS command injection. The input is not checked against a fixed allow-list, making it exploitable."
+    },
+    {
+      "file": "exports.py",
+      "line": 39,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": false,
+      "explanation": "The value of `name` is directly used in the SQL query without any validation or sanitization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "exports.py",
+      "line": 49,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The value of `name` is derived from user input and directly used in the SQL query without any validation or sanitization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "formats.js",
+      "line": 10,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": false,
+      "explanation": "The value of `mime` is derived from user input (`req.query.f`) and is directly used in the SQL query without any sanitization or parameterized query. This makes the code vulnerable to SQL injection."
+    },
+    {
+      "file": "TicketServlet.java",
+      "line": 14,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": true,
+      "explanation": "The user-controlled input 'id' is directly concatenated into the SQL query, which makes it vulnerable to SQL injection. An attacker could provide a malicious 'id' value to execute arbitrary SQL commands."
+    }
+  ]
+}

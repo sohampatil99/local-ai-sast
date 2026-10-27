@@ -1,0 +1,93 @@
+{
+  "accuracy": {
+    "expected": 46,
+    "detected": 46,
+    "reported": 46,
+    "detection_rate": 100.0,
+    "false_positive_rate": 0.0,
+    "missed": [],
+    "false_positives": [],
+    "dependency_advisories": 6,
+    "by_category": {
+      "buffer_overflow": "2/2",
+      "cmdi": "5/5",
+      "code_injection": "2/2",
+      "deserialization": "3/3",
+      "format_string": "1/1",
+      "hardcoded_secret": "11/11",
+      "insecure_config": "2/2",
+      "insecure_tls": "1/1",
+      "path_traversal": "3/3",
+      "sqli": "5/5",
+      "ssrf": "1/1",
+      "unsafe_file": "2/2",
+      "weak_crypto": "4/4",
+      "xss": "4/4"
+    }
+  },
+  "accuracy_extra": {
+    "expected": 20,
+    "detected": 20,
+    "reported": 20,
+    "detection_rate": 100.0,
+    "false_positive_rate": 0.0,
+    "missed": [],
+    "false_positives": [],
+    "dependency_advisories": 0,
+    "by_category": {
+      "buffer_overflow": "1/1",
+      "cmdi": "4/4",
+      "code_injection": "1/1",
+      "deserialization": "1/1",
+      "format_string": "1/1",
+      "hardcoded_secret": "3/3",
+      "insecure_tls": "1/1",
+      "path_traversal": "1/1",
+      "sqli": "3/3",
+      "weak_crypto": "3/3",
+      "xss": "1/1"
+    }
+  },
+  "performance": [
+    {
+      "target": ".venv\\Lib\\site-packages\\starlette",
+      "files": 36,
+      "loc": 5879,
+      "seconds": 0.259,
+      "loc_per_second": 22699,
+      "findings": 0
+    },
+    {
+      "target": ".venv\\Lib\\site-packages\\fastapi",
+      "files": 52,
+      "loc": 20193,
+      "seconds": 0.494,
+      "loc_per_second": 40877,
+      "findings": 0
+    },
+    {
+      "target": ".venv\\Lib\\site-packages\\jinja2",
+      "files": 25,
+      "loc": 11692,
+      "seconds": 0.405,
+      "loc_per_second": 28869,
+      "findings": 8
+    },
+    {
+      "target": ".venv\\Lib\\site-packages\\httpx",
+      "files": 23,
+      "loc": 7449,
+      "seconds": 0.227,
+      "loc_per_second": 32815,
+      "findings": 1
+    },
+    {
+      "target": ".venv\\Lib\\site-packages\\pip",
+      "files": 403,
+      "loc": 113694,
+      "seconds": 5.836,
+      "loc_per_second": 19481,
+      "findings": 16
+    }
+  ]
+}

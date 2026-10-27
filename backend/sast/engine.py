@@ -1,0 +1,254 @@
+"""Scan orchestration: discovery -> detectors -> dedupe -> taxonomy -> optional AI -> summary."""
+import ast
+import difflib
+import math
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+from . import __version__
+from .ast_java import _PARSER as JAVA_PARSER
+from .ast_java import AVAILABLE as JAVA_AST_AVAILABLE
+from .ast_java import scan_java
+from .ast_js import _PARSERS as JS_PARSERS
+from .ast_js import AVAILABLE as JS_AST_AVAILABLE
+from .ast_js import scan_js
+from .ast_python import scan_python
+from .llm import FUNCTION_START
+from .deps import scan_dependencies
+from .discovery import discover
+from .models import SEVERITY_ORDER, Finding
+from .rules import scan_rules
+from .secret_scan import scan_secrets
+from .taxonomy import enrich
+
+CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1}
+DETECTOR_RANK = {"ast-python": 3, "ast-js": 3, "ast-java": 3, "secrets": 2, "rules": 1, "deps": 1, "ai": 0}
+SEVERITY_WEIGHT = {"critical": 10, "high": 5, "medium": 2, "low": 1, "info": 0}
+CODE_LANGS = {"python", "javascript", "typescript", "java"}
+
+
+def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=None, scan_id=None):
+    say = progress or (lambda msg: None)
+    started = time.perf_counter()
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    say("Discovering files")
+    repo = discover(target)
+    say(f"Scanning {len(repo.files)} files ({repo.total_loc} LOC)")
+
+    findings, texts = [], {}
+    for sf in repo.files:
+        try:
+            text = Path(sf.path).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        lines = text.splitlines()
+        texts[sf.rel] = lines
+        findings += scan_secrets(sf, lines)
+        if sf.language == "python":
+            findings += scan_python(sf, text, lines)
+        elif sf.language in {"javascript", "typescript"}:
+            findings += scan_js(sf, text, lines) if JS_AST_AVAILABLE else \
+                scan_rules(sf, lines, js_fallback=True)
+        elif sf.language == "java" and JAVA_AST_AVAILABLE:
+            findings += scan_java(sf, text, lines)
+        elif sf.language != "config":
+            findings += scan_rules(sf, lines)
+    findings += scan_dependencies(repo.root, repo.dependencies)
+    findings = [enrich(f) for f in _dedupe(findings)]
+    static_seconds = time.perf_counter() - started
+
+    ai_status = {"enabled": False, "detail": "AI analysis not requested"}
+    if ai or ai_review:
+        from .llm import LocalLLM
+        llm = LocalLLM(model)
+        ok, detail = llm.status()
+        ai_status = {"enabled": ok, "model": llm.model, "detail": detail, "triaged": 0, "reviewed_files": 0}
+        if ok and ai:
+            ai_status["triaged"] = _triage(llm, findings, texts, ai_limit, say)
+            ai_status["patched"] = attach_patches(findings, texts)
+        if ok and ai_review:
+            new = _review(llm, repo, texts, findings, say)
+            ai_status["reviewed_files"] = new[0]
+            findings += new[1]
+
+    findings.sort(key=lambda f: (-SEVERITY_ORDER.get(f.severity, 0), f.file, f.line))
+    duration = time.perf_counter() - started
+    say("Done")
+    return {
+        "id": scan_id or uuid.uuid4().hex[:12],
+        "tool": {"name": "Local AI SAST Engine", "version": __version__},
+        "target": str(Path(target).resolve()),
+        "started_at": started_at,
+        "duration_seconds": round(duration, 2),
+        "static_seconds": round(static_seconds, 3),
+        "repo": {
+            "files_scanned": len(repo.files), "skipped": repo.skipped, "total_loc": repo.total_loc,
+            "languages": repo.languages, "dependency_manifests": repo.dependencies,
+            "js_engine": "tree-sitter" if JS_AST_AVAILABLE else "regex-fallback",
+            "java_engine": "tree-sitter" if JAVA_AST_AVAILABLE else "regex-fallback",
+        },
+        "ai": ai_status,
+        "summary": summarize(findings),
+        "findings": [f.to_dict() for f in findings],
+        "fix_patch": combined_patch(findings, texts),
+    }
+
+
+def _replacement(lines, line, fixed_code):
+    """The AI's fixed line(s), indented like the line they replace; None if unusable or unchanged."""
+    code = fixed_code.strip("\n")
+    if not code.strip() or not (0 < line <= len(lines)):
+        return None
+    new = code.splitlines()
+    indent = lines[line - 1][: len(lines[line - 1]) - len(lines[line - 1].lstrip())]
+    if not new[0].startswith((" ", "\t")):
+        new = [indent + l if l.strip() else l for l in new]
+    if [l.rstrip() for l in new] == [lines[line - 1].rstrip()]:
+        return None
+    if len(new) > 8 or (any(FUNCTION_START.match(l) for l in new) and not FUNCTION_START.match(lines[line - 1])):
+        return None  # the model rewrote the whole function instead of the flagged line
+    return new
+
+
+def _parses(file, language, lines):
+    """True if the patched file is still syntactically valid (a broken fix is worse than none)."""
+    text = "\n".join(lines) + "\n"
+    if language == "python":
+        try:
+            ast.parse(text)
+            return True
+        except SyntaxError:
+            return False
+    parser = JS_PARSERS.get("tsx" if file.endswith(".tsx") else language) if language != "java" else JAVA_PARSER
+    if parser is None:
+        return True  # no parser for this language: keep the suggestion, it is shown for review anyway
+    return not parser.parse(text.encode("utf-8")).root_node.has_error
+
+
+def _diff(file, old, new):
+    return "\n".join(difflib.unified_diff(old, new, f"a/{file}", f"b/{file}", lineterm="")) + "\n"
+
+
+def attach_patches(findings, texts):
+    """Turn each AI fixed_code into a unified diff against the real file (finding.ai["patch"])."""
+    count = 0
+    for f in findings:
+        if not f.ai or f.ai.get("verdict") == "false_positive" or not f.ai.get("fixed_code"):
+            continue
+        lines = texts.get(f.file, [])
+        new = _replacement(lines, f.line, f.ai["fixed_code"])
+        if new is None:
+            continue
+        patched = lines[: f.line - 1] + new + lines[f.line:]
+        if not _parses(f.file, f.language, patched):
+            f.ai["patch_rejected"] = "The suggested fix does not parse, so no patch was produced."
+            continue
+        f.ai["patch"] = _diff(f.file, lines, patched)
+        count += 1
+    return count
+
+
+def combined_patch(findings, texts):
+    """One patch with every AI fix, applied bottom-up per file so line numbers stay valid (git apply)."""
+    by_file = {}
+    for f in findings:
+        if f.ai and f.ai.get("patch"):
+            by_file.setdefault(f.file, []).append(f)
+    out = []
+    for file, items in sorted(by_file.items()):
+        lines = list(texts.get(file, []))
+        new_lines, done = list(lines), set()
+        for f in sorted(items, key=lambda x: -x.line):
+            new = _replacement(lines, f.line, f.ai["fixed_code"])
+            if new is not None and f.line not in done:  # two findings on one line: keep the first fix
+                done.add(f.line)
+                new_lines[f.line - 1: f.line] = new
+        out.append(_diff(file, lines, new_lines))
+    return "".join(out)
+
+
+def _dedupe(findings):
+    best = {}
+    for f in findings:
+        k = f.key()
+        cur = best.get(k)
+        if cur is None or (CONFIDENCE_RANK.get(f.confidence, 0), DETECTOR_RANK.get(f.detector, 0)) > \
+                (CONFIDENCE_RANK.get(cur.confidence, 0), DETECTOR_RANK.get(cur.detector, 0)):
+            best[k] = f
+    return list(best.values())
+
+
+def _triage(llm, findings, texts, limit, say):
+    queue = [f for f in findings if f.severity in {"critical", "high"} and f.detector != "deps"]
+    queue.sort(key=lambda f: -SEVERITY_ORDER[f.severity])
+    done = 0
+    for i, f in enumerate(queue[:limit], 1):
+        say(f"AI triage {i}/{min(limit, len(queue))}: {f.title} in {f.file}:{f.line}")
+        for attempt in range(2):  # first call can fail while Ollama loads the model into VRAM
+            try:
+                f.ai = llm.triage(f, texts.get(f.file, []))
+                done += 1
+                break
+            except Exception as exc:  # one slow/failed call must not kill the scan
+                f.ai = {"verdict": "needs_review", "explanation": f"AI analysis failed: {exc}"}
+    return done
+
+
+def _review(llm, repo, texts, findings, say, max_files=4):
+    route_markers = ("@app.route", ".route(", "app.get(", "app.post(", "router.", "@router.", "@admin.")
+    candidates = [sf for sf in repo.files if sf.language in CODE_LANGS
+                  and any(m in "\n".join(texts.get(sf.rel, [])) for m in route_markers)]
+    # The model tends to restate nearby static findings a line or two off; keep only new territory
+    existing = {}
+    for f in findings:
+        existing.setdefault(f.file, []).append(f.line)
+    near_existing = lambda file, line: any(abs(line - l) <= 4 for l in existing.get(file, []))
+    new = []
+    for i, sf in enumerate(candidates[:max_files], 1):
+        say(f"AI code review {i}/{min(max_files, len(candidates))}: {sf.rel}")
+        try:
+            issues = llm.review_file(sf.rel, "\n".join(texts[sf.rel]))
+        except Exception:
+            continue
+        lines = texts[sf.rel]
+        for issue in issues:
+            line = issue["line"] if 0 < issue["line"] <= len(lines) else 1
+            if near_existing(sf.rel, line):
+                continue
+            sev = issue["severity"] if issue["severity"] in SEVERITY_ORDER else "medium"
+            f = enrich(Finding(
+                rule_id="AI-REVIEW", title=issue["title"], category=issue["category"], severity=sev,
+                file=sf.rel, line=line, snippet=lines[line - 1].strip()[:300] if lines else "",
+                message=issue["explanation"], detector="ai", confidence="low",
+                language=sf.language, remediation=issue["fix"]))
+            f.ai = {"model": llm.model, "verdict": "needs_review", "explanation": issue["explanation"],
+                    "fix": issue["fix"], "source": "ai-review"}
+            new.append(f)
+    return min(max_files, len(candidates)), new
+
+
+def summarize(findings):
+    by_sev = {s: 0 for s in ("critical", "high", "medium", "low")}
+    by_cat, by_owasp, by_cwe, by_file, by_detector = {}, {}, {}, {}, {}
+    penalty = 0
+    for f in findings:
+        if f.ai and f.ai.get("verdict") == "false_positive":
+            continue
+        by_sev[f.severity] = by_sev.get(f.severity, 0) + 1
+        for bucket, key in ((by_cat, f.category), (by_owasp, f.owasp), (by_cwe, f.cwe),
+                            (by_file, f.file), (by_detector, f.detector)):
+            bucket[key] = bucket.get(key, 0) + 1
+        penalty += SEVERITY_WEIGHT.get(f.severity, 0)
+    score = round(100 * math.exp(-penalty / 150))
+    grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D" if score >= 40 else "F"
+    return {
+        "total": sum(by_sev.values()),
+        "ai_false_positives": sum(1 for f in findings if f.ai and f.ai.get("verdict") == "false_positive"),
+        "by_severity": by_sev, "by_category": by_cat, "by_owasp": dict(sorted(by_owasp.items())),
+        "by_cwe": by_cwe, "by_file": dict(sorted(by_file.items(), key=lambda kv: -kv[1])),
+        "by_detector": by_detector, "security_score": score, "grade": grade,
+        "secrets_exposed": by_cat.get("hardcoded_secret", 0),
+    }

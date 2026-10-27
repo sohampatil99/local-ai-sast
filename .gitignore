@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+backend/.env
+backend/data/
+reports/
+sast-out/
+docs/deck/node_modules/
+docs/deck_preview.pdf
+docs/
+benchmark/ai_holdout_results.json

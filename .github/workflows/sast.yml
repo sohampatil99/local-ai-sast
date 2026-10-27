@@ -1,0 +1,32 @@
+# CI integration: scan the application code, fail the build on high/critical findings,
+# and publish the SARIF report to GitHub code scanning (Security tab, PR annotations).
+# `backend` is scanned rather than `.` because samples/ and benchmark/ contain deliberately vulnerable code.
+# Code scanning on private repositories needs GitHub Advanced Security.
+name: Local SAST
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Scan
+        run: python backend/cli.py scan backend --out sast-out --format sarif,html --fail-on high
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sast-out
+      - name: Keep the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-report
+          path: sast-out/*.html

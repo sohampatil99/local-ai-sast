@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAST Report {{ r.id }}</title>
+<style>
+  :root { --bg:#f7f8fa; --card:#fff; --ink:#1b1f24; --muted:#5b6572; --line:#e3e6ea;
+          --crit:#7b1fa2; --high:#c62828; --med:#d97706; --low:#1565c0; --ok:#2e7d32; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  header { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;
+           border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:20px; }
+  h1 { margin:0; font-size:24px; } h2 { font-size:17px; margin:28px 0 10px; }
+  .muted { color:var(--muted); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .big { font-size:28px; font-weight:700; }
+  .crit{color:var(--crit)} .high{color:var(--high)} .medium{color:var(--med)} .low{color:var(--low)}
+  .bar { display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--line); margin-top:10px; }
+  .bar span { display:block; height:100%; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#eef0f3; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
+  .pill.critical{background:var(--crit)} .pill.high{background:var(--high)}
+  .pill.medium{background:var(--med)} .pill.low{background:var(--low)}
+  code, pre { font-family: Consolas, "Cascadia Mono", monospace; font-size:12.5px; }
+  pre { background:#f1f3f5; padding:8px; border-radius:6px; white-space:pre-wrap; word-break:break-word; margin:6px 0; }
+  .finding { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--line);
+             border-radius:6px; padding:12px 14px; margin-bottom:10px; page-break-inside:avoid; }
+  .finding.critical{border-left-color:var(--crit)} .finding.high{border-left-color:var(--high)}
+  .finding.medium{border-left-color:var(--med)} .finding.low{border-left-color:var(--low)}
+  .meta { font-size:12px; color:var(--muted); }
+  .ai { background:#f3f0ff; border-radius:6px; padding:8px 10px; margin-top:8px; }
+  @media print { body{background:#fff} .wrap{padding:0} }
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <div>
+    <h1>Security Scan Report</h1>
+    <div class="muted">Local AI SAST Engine v{{ r.tool.version }} &middot; offline analysis</div>
+  </div>
+  <div class="muted" style="text-align:right">
+    Target: <code>{{ r.target }}</code><br>Scan {{ r.id }} &middot; {{ r.started_at }}
+  </div>
+</header>
+
+<h2>Executive summary</h2>
+<div class="grid">
+  <div class="card"><div class="muted">Security score</div><div class="big">{{ s.security_score }}<span class="muted" style="font-size:16px">/100</span></div><div>Grade {{ s.grade }}</div></div>
+  <div class="card"><div class="muted">Findings</div><div class="big">{{ s.total }}</div><div>{{ s.secrets_exposed }} exposed secrets</div></div>
+  <div class="card"><div class="muted">Critical / High</div><div class="big"><span class="crit">{{ s.by_severity.critical }}</span> / <span class="high">{{ s.by_severity.high }}</span></div></div>
+  <div class="card"><div class="muted">Scanned</div><div class="big">{{ r.repo.total_loc }}</div><div>LOC in {{ r.repo.files_scanned }} files, {{ r.duration_seconds }}s</div></div>
+</div>
+{% set t = s.total if s.total else 1 %}
+<div class="bar" title="Severity distribution">
+  <span style="width:{{ 100*s.by_severity.critical/t }}%;background:var(--crit)"></span>
+  <span style="width:{{ 100*s.by_severity.high/t }}%;background:var(--high)"></span>
+  <span style="width:{{ 100*s.by_severity.medium/t }}%;background:var(--med)"></span>
+  <span style="width:{{ 100*s.by_severity.low/t }}%;background:var(--low)"></span>
+</div>
+<p class="muted">
+  Languages: {% for k, v in r.repo.languages.items() %}{{ k }} ({{ v }}){% if not loop.last %}, {% endif %}{% endfor %}.
+  AI analysis: {{ r.ai.detail }}{% if r.ai.enabled %} &middot; {{ r.ai.triaged }} findings triaged, {{ r.ai.reviewed_files }} files reviewed{% endif %}.
+  {% if s.ai_false_positives %}{{ s.ai_false_positives }} findings were marked false positive by the AI and excluded from the score.{% endif %}
+</p>
+
+<h2>OWASP Top 10 mapping</h2>
+<table>
+  <tr><th>OWASP category</th><th>Findings</th></tr>
+  {% for k, v in s.by_owasp.items() %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+</table>
+
+<h2>CWE breakdown</h2>
+<table>
+  <tr><th>CWE</th><th>Findings</th></tr>
+  {% for k, v in s.by_cwe.items()|sort(attribute='1', reverse=True) %}
+  <tr><td><a href="https://cwe.mitre.org/data/definitions/{{ k.split('-')[1] }}.html">{{ k }}</a></td><td>{{ v }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Findings</h2>
+{% for f in r.findings %}
+<div class="finding {{ f.severity }}">
+  <div><span class="pill {{ f.severity }}">{{ f.severity|upper }}</span>
+    <strong>{{ f.title }}</strong>
+    <span class="meta">&middot; {{ f.cwe }} &middot; {{ f.owasp }}</span></div>
+  <div class="meta"><code>{{ f.file }}:{{ f.line }}</code> &middot; detector {{ f.detector }} &middot; confidence {{ f.confidence }}</div>
+  <pre>{{ f.snippet }}</pre>
+  <div>{{ f.message }}</div>
+  <div><strong>Remediation:</strong> {{ f.remediation }}</div>
+  {% if f.ai and f.ai.explanation %}
+  <div class="ai"><strong>AI ({{ f.ai.verdict|replace('_', ' ') }}{% if f.ai.confidence %}, {{ (f.ai.confidence*100)|round|int }}%{% endif %}):</strong> {{ f.ai.explanation }}
+    {% if f.ai.exploit_scenario %}<br><em>Attack:</em> {{ f.ai.exploit_scenario }}{% endif %}
+    {% if f.ai.fix %}<br><em>Fix:</em> {{ f.ai.fix }}{% endif %}
+    {% if f.ai.fixed_code %}<pre>{{ f.ai.fixed_code }}</pre>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<p>No findings.</p>
+{% endfor %}
+</div></body>
+</html>

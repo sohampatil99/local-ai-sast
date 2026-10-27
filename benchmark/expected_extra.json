@@ -1,0 +1,102 @@
+[
+  {
+    "file": "api.ts",
+    "line": 9,
+    "category": "sqli"
+  },
+  {
+    "file": "api.ts",
+    "line": 14,
+    "category": "cmdi"
+  },
+  {
+    "file": "api.ts",
+    "line": 18,
+    "category": "code_injection"
+  },
+  {
+    "file": "api.ts",
+    "line": 22,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "legacy.php",
+    "line": 5,
+    "category": "sqli"
+  },
+  {
+    "file": "legacy.php",
+    "line": 6,
+    "category": "xss"
+  },
+  {
+    "file": "legacy.php",
+    "line": 7,
+    "category": "cmdi"
+  },
+  {
+    "file": "legacy.php",
+    "line": 8,
+    "category": "deserialization"
+  },
+  {
+    "file": "legacy.php",
+    "line": 9,
+    "category": "path_traversal"
+  },
+  {
+    "file": "legacy.php",
+    "line": 10,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "main.go",
+    "line": 14,
+    "category": "sqli"
+  },
+  {
+    "file": "main.go",
+    "line": 19,
+    "category": "cmdi"
+  },
+  {
+    "file": "main.go",
+    "line": 24,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "main.go",
+    "line": 31,
+    "category": "insecure_tls"
+  },
+  {
+    "file": "render.cpp",
+    "line": 9,
+    "category": "buffer_overflow"
+  },
+  {
+    "file": "render.cpp",
+    "line": 15,
+    "category": "cmdi"
+  },
+  {
+    "file": "render.cpp",
+    "line": 19,
+    "category": "format_string"
+  },
+  {
+    "file": "settings.py",
+    "line": 4,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "settings.py",
+    "line": 5,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "settings.py",
+    "line": 6,
+    "category": "hardcoded_secret"
+  }
+]

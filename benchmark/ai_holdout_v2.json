@@ -1,0 +1,139 @@
+{
+  "summary": {
+    "prompt": "sast/llm.py",
+    "model": "qwen2.5-coder:7b",
+    "real_confirmed": {
+      "cases": 6,
+      "correct": 6,
+      "needs_review": 0
+    },
+    "safe_dismissed": {
+      "cases": 6,
+      "correct": 0,
+      "needs_review": 0
+    },
+    "accuracy": "6/12"
+  },
+  "cases": [
+    {
+      "file": "billing.js",
+      "line": 10,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": false,
+      "explanation": "The user-controlled `invoiceId` and `receiptId` are directly concatenated into the SQL query, which makes the code vulnerable to SQL injection. An attacker could inject malicious SQL code by providing a specially crafted `id` parameter."
+    },
+    {
+      "file": "billing.js",
+      "line": 16,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The user-controlled input `receiptId` is directly used in the SQL query without proper sanitization or parameterization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "ReportServlet.java",
+      "line": 16,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": false,
+      "explanation": "The value of the 'sort' parameter is directly used in the SQL query without any validation or sanitization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "ReportServlet.java",
+      "line": 22,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": true,
+      "explanation": "The value of the 'sort' parameter is directly used in the SQL query without any validation or sanitization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "shop.py",
+      "line": 22,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": false,
+      "explanation": "The value of `col` is derived from user input (`request.args.get('sort')`) and is directly used in the SQL query without any validation or sanitization. This makes the code vulnerable to SQL injection."
+    },
+    {
+      "file": "shop.py",
+      "line": 30,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": true,
+      "explanation": "The value of `col` is derived from user input (`request.args.get('sort', 'name')`) and directly used in the SQL query without any validation or sanitization. This makes the code vulnerable to SQL injection."
+    },
+    {
+      "file": "shop.py",
+      "line": 39,
+      "label": "safe",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": false,
+      "explanation": "The value of `svc` is directly derived from user input and passed to `os.system()`, which can lead to command injection if an attacker provides a malicious service name."
+    },
+    {
+      "file": "shop.py",
+      "line": 48,
+      "label": "real",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The value of `host` is directly taken from the request parameter and passed to `os.popen()`, which can lead to command injection if the input is not properly sanitized."
+    },
+    {
+      "file": "shop.py",
+      "line": 56,
+      "label": "safe",
+      "title": "Path Traversal",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": false,
+      "explanation": "The value of `target` is derived from user input and is not properly sanitized before being passed to `send_file()`. This allows an attacker to traverse the file system and access files outside the intended directory."
+    },
+    {
+      "file": "shop.py",
+      "line": 64,
+      "label": "real",
+      "title": "Path Traversal",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The value of `target` is derived from user input (`request.args['p']`) and is passed directly to `send_file()`. This allows an attacker to traverse the file system by manipulating the input, potentially leading to unauthorized access to sensitive files."
+    },
+    {
+      "file": "shop.py",
+      "line": 69,
+      "label": "safe",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.95,
+      "correct": false,
+      "explanation": "The value of `job` is derived from a function parameter (`uuid.uuid4().hex`), which is attacker-controlled. The code does not include any defense mechanism to ensure that the value of `job` is safe to use in the `os.system` call."
+    },
+    {
+      "file": "shop.py",
+      "line": 73,
+      "label": "real",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.9,
+      "correct": true,
+      "explanation": "The value of `request.args['format']` is attacker-controlled and directly used in the `os.system()` call without any validation or sanitization. This makes the code vulnerable to OS command injection."
+    }
+  ]
+}

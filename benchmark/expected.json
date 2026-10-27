@@ -1,0 +1,232 @@
+[
+  {
+    "file": "Account.java",
+    "line": 7,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "Account.java",
+    "line": 11,
+    "category": "sqli"
+  },
+  {
+    "file": "Account.java",
+    "line": 21,
+    "category": "cmdi"
+  },
+  {
+    "file": "Account.java",
+    "line": 25,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "Account.java",
+    "line": 29,
+    "category": "deserialization"
+  },
+  {
+    "file": "app.py",
+    "line": 13,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "app.py",
+    "line": 14,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "app.py",
+    "line": 25,
+    "category": "sqli"
+  },
+  {
+    "file": "app.py",
+    "line": 34,
+    "category": "sqli"
+  },
+  {
+    "file": "app.py",
+    "line": 49,
+    "category": "cmdi"
+  },
+  {
+    "file": "app.py",
+    "line": 55,
+    "category": "cmdi"
+  },
+  {
+    "file": "app.py",
+    "line": 63,
+    "category": "code_injection"
+  },
+  {
+    "file": "app.py",
+    "line": 69,
+    "category": "xss"
+  },
+  {
+    "file": "app.py",
+    "line": 75,
+    "category": "xss"
+  },
+  {
+    "file": "app.py",
+    "line": 81,
+    "category": "path_traversal"
+  },
+  {
+    "file": "app.py",
+    "line": 87,
+    "category": "path_traversal"
+  },
+  {
+    "file": "app.py",
+    "line": 94,
+    "category": "deserialization"
+  },
+  {
+    "file": "app.py",
+    "line": 99,
+    "category": "deserialization"
+  },
+  {
+    "file": "app.py",
+    "line": 107,
+    "category": "ssrf"
+  },
+  {
+    "file": "app.py",
+    "line": 107,
+    "category": "insecure_tls"
+  },
+  {
+    "file": "app.py",
+    "line": 111,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "app.py",
+    "line": 119,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "app.py",
+    "line": 127,
+    "category": "insecure_config"
+  },
+  {
+    "file": "config.py",
+    "line": 5,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 6,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 7,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 8,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 9,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 16,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "config.py",
+    "line": 20,
+    "category": "insecure_config"
+  },
+  {
+    "file": "config.py",
+    "line": 24,
+    "category": "unsafe_file"
+  },
+  {
+    "file": "config.py",
+    "line": 28,
+    "category": "unsafe_file"
+  },
+  {
+    "file": "server.js",
+    "line": 12,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "server.js",
+    "line": 16,
+    "category": "sqli"
+  },
+  {
+    "file": "server.js",
+    "line": 20,
+    "category": "sqli"
+  },
+  {
+    "file": "server.js",
+    "line": 29,
+    "category": "cmdi"
+  },
+  {
+    "file": "server.js",
+    "line": 33,
+    "category": "code_injection"
+  },
+  {
+    "file": "server.js",
+    "line": 37,
+    "category": "xss"
+  },
+  {
+    "file": "server.js",
+    "line": 42,
+    "category": "path_traversal"
+  },
+  {
+    "file": "server.js",
+    "line": 46,
+    "category": "hardcoded_secret"
+  },
+  {
+    "file": "server.js",
+    "line": 51,
+    "category": "weak_crypto"
+  },
+  {
+    "file": "server.js",
+    "line": 59,
+    "category": "xss"
+  },
+  {
+    "file": "util.c",
+    "line": 9,
+    "category": "buffer_overflow"
+  },
+  {
+    "file": "util.c",
+    "line": 15,
+    "category": "buffer_overflow"
+  },
+  {
+    "file": "util.c",
+    "line": 16,
+    "category": "cmdi"
+  },
+  {
+    "file": "util.c",
+    "line": 26,
+    "category": "format_string"
+  }
+]

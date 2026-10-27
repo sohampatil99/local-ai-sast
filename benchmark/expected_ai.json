@@ -1,0 +1,62 @@
+[
+  {
+    "file": "billing.js",
+    "line": 10,
+    "label": "safe"
+  },
+  {
+    "file": "billing.js",
+    "line": 16,
+    "label": "real"
+  },
+  {
+    "file": "ReportServlet.java",
+    "line": 16,
+    "label": "safe"
+  },
+  {
+    "file": "ReportServlet.java",
+    "line": 22,
+    "label": "real"
+  },
+  {
+    "file": "shop.py",
+    "line": 22,
+    "label": "safe"
+  },
+  {
+    "file": "shop.py",
+    "line": 30,
+    "label": "real"
+  },
+  {
+    "file": "shop.py",
+    "line": 39,
+    "label": "safe"
+  },
+  {
+    "file": "shop.py",
+    "line": 48,
+    "label": "real"
+  },
+  {
+    "file": "shop.py",
+    "line": 56,
+    "label": "safe"
+  },
+  {
+    "file": "shop.py",
+    "line": 64,
+    "label": "real"
+  },
+  {
+    "file": "shop.py",
+    "line": 69,
+    "label": "safe"
+  },
+  {
+    "file": "shop.py",
+    "line": 73,
+    "label": "real"
+  }
+]

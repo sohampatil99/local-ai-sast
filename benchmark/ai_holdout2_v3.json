@@ -1,0 +1,79 @@
+{
+  "summary": {
+    "prompt": "sast/llm.py",
+    "model": "qwen2.5-coder:7b",
+    "real_confirmed": {
+      "cases": 3,
+      "correct": 3,
+      "needs_review": 0
+    },
+    "safe_dismissed": {
+      "cases": 3,
+      "correct": 3,
+      "needs_review": 0
+    },
+    "accuracy": "6/6"
+  },
+  "cases": [
+    {
+      "file": "exports.py",
+      "line": 20,
+      "label": "safe",
+      "title": "OS Command Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The value 'kind' is derived from user input and checked against a fixed set of allowed values ('pdf' and 'csv'). This mitigates the risk of injection, but it's still a potential risk if the input is not properly sanitized before use."
+    },
+    {
+      "file": "exports.py",
+      "line": 29,
+      "label": "real",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input 'kind' is directly used in the os.system() call without any further checks or sanitization. Since 'kind' can be manipulated by the user, it could lead to command injection if 'kind' contains malicious shell commands."
+    },
+    {
+      "file": "exports.py",
+      "line": 39,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input is checked against a regex pattern that allows only lowercase letters, digits, and underscores. This is a basic form of input validation, but it does not prevent SQL injection if the input is used directly in the SQL query."
+    },
+    {
+      "file": "exports.py",
+      "line": 49,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input is not fully sanitized before being used in the SQL query, which could allow SQL injection."
+    },
+    {
+      "file": "formats.js",
+      "line": 10,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The value of 'mime' is derived from user input through the request query parameter 'f'. This value is then directly used in the SQL query without proper sanitization, making it vulnerable to SQL injection."
+    },
+    {
+      "file": "TicketServlet.java",
+      "line": 14,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input 'id' is directly used in an SQL query without proper sanitization, which could lead to SQL injection."
+    }
+  ]
+}

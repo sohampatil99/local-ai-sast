@@ -1,0 +1,47 @@
+[
+  {
+    "file": "OrderServlet.java",
+    "line": 15,
+    "category": "path_traversal"
+  },
+  {
+    "file": "OrderServlet.java",
+    "line": 19,
+    "category": "xss"
+  },
+  {
+    "file": "OrderServlet.java",
+    "line": 24,
+    "category": "sqli"
+  },
+  {
+    "file": "routes.js",
+    "line": 13,
+    "category": "path_traversal"
+  },
+  {
+    "file": "routes.js",
+    "line": 21,
+    "category": "sqli"
+  },
+  {
+    "file": "views.py",
+    "line": 23,
+    "category": "path_traversal"
+  },
+  {
+    "file": "views.py",
+    "line": 33,
+    "category": "ssrf"
+  },
+  {
+    "file": "views.py",
+    "line": 49,
+    "category": "xss"
+  },
+  {
+    "file": "views.py",
+    "line": 57,
+    "category": "path_traversal"
+  }
+]

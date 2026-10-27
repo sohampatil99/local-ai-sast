@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local AI SAST</title>
+<link rel="stylesheet" href="app.css">
+<script src="vendor/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <span>Local AI SAST Engine</span>
+  </div>
+  <div class="badges" id="badges"></div>
+</header>
+
+<main class="layout">
+  <aside class="side">
+    <section class="panel">
+      <h2>New scan</h2>
+      <form id="scanForm">
+        <label for="target">Local path or Git URL</label>
+        <input id="target" placeholder="C:\path\to\repo" autocomplete="off" required>
+        <label class="check"><input type="checkbox" id="ai"> AI triage of high/critical findings</label>
+        <label class="check"><input type="checkbox" id="aiReview"> AI review for auth / logic flaws</label>
+        <button type="submit" id="scanBtn">Scan</button>
+      </form>
+      <form id="uploadForm" class="upload">
+        <label for="zip">or upload a .zip</label>
+        <input type="file" id="zip" accept=".zip">
+      </form>
+      <div id="formMsg" class="msg"></div>
+    </section>
+    <section class="panel">
+      <h2>Scan history</h2>
+      <ul id="history" class="history"></ul>
+    </section>
+  </aside>
+
+  <section class="content" id="content">
+    <div class="empty" id="empty">
+      <h1>Scan a repository</h1>
+      <p>Everything runs on this machine. Source code never leaves it.</p>
+    </div>
+    <div id="scanView" hidden>
+      <div class="scan-head">
+        <div>
+          <h1 id="scanTitle"></h1>
+          <div class="muted" id="scanMeta"></div>
+        </div>
+        <div class="exports" id="exports"></div>
+      </div>
+      <div id="progress" class="progress" hidden></div>
+
+      <div class="tiles" id="tiles"></div>
+
+      <div class="charts">
+        <div class="panel"><h3>Severity distribution</h3><div class="chart-box"><canvas id="sevChart"></canvas></div></div>
+        <div class="panel"><h3>OWASP Top 10 (2021)</h3><div class="chart-box"><canvas id="owaspChart"></canvas></div></div>
+        <div class="panel"><h3>Trend across scans of this target</h3><div class="chart-box"><canvas id="trendChart"></canvas></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="table-head">
+          <h3>Findings <span class="muted" id="count"></span></h3>
+          <div class="filters">
+            <input id="search" placeholder="Search file, title, CWE...">
+            <select id="fSeverity"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
+            <select id="fCategory"><option value="">All categories</option></select>
+            <select id="fDetector"><option value="">All detectors</option></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="findings">
+            <thead><tr><th>Severity</th><th>Finding</th><th>Location</th><th>CWE / OWASP</th><th>AI</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Files with most findings</h3>
+        <div id="fileList" class="file-list"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

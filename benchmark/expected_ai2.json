@@ -1,0 +1,32 @@
+[
+  {
+    "file": "exports.py",
+    "line": 20,
+    "label": "safe"
+  },
+  {
+    "file": "exports.py",
+    "line": 29,
+    "label": "real"
+  },
+  {
+    "file": "exports.py",
+    "line": 39,
+    "label": "safe"
+  },
+  {
+    "file": "exports.py",
+    "line": 49,
+    "label": "real"
+  },
+  {
+    "file": "formats.js",
+    "line": 10,
+    "label": "safe"
+  },
+  {
+    "file": "TicketServlet.java",
+    "line": 14,
+    "label": "real"
+  }
+]
