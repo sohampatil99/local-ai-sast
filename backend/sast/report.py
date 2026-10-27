@@ -21,9 +21,29 @@ def to_json(result):
     return json.dumps({k: v for k, v in result.items() if k != "fix_patch"}, indent=2)
 
 
+def _repo_root(target):
+    """(git top-level, scanned folder relative to it + "/") so SARIF paths match the repository.
+
+    GitHub code scanning places alerts by repository-relative path; a scan of backend/ reports
+    "pr_demo.py", which GitHub must see as "backend/pr_demo.py". Outside git: (target, "").
+    """
+    target = Path(target)
+    try:
+        top = subprocess.run(["git", "-C", str(target), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=10)
+        if top.returncode == 0:
+            root = Path(top.stdout.strip()).resolve()
+            rel = target.resolve().relative_to(root).as_posix()
+            return root, "" if rel == "." else rel + "/"
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return target, ""
+
+
 def to_sarif(result):
     rules, index = [], {}
     results = []
+    root, prefix = _repo_root(result["target"])
     for f in result["findings"]:
         rid = f["rule_id"]
         if rid not in index:
@@ -43,7 +63,7 @@ def to_sarif(result):
             "ruleId": rid, "ruleIndex": index[rid], "level": SARIF_LEVEL.get(f["severity"], "warning"),
             "message": {"text": msg},
             "locations": [{"physicalLocation": {
-                "artifactLocation": {"uri": f["file"], "uriBaseId": "SRCROOT"},
+                "artifactLocation": {"uri": prefix + f["file"], "uriBaseId": "SRCROOT"},
                 "region": {"startLine": max(1, f["line"]), "snippet": {"text": f["snippet"]}}}}],
             "properties": {"severity": f["severity"], "category": f["category"], "cwe": f["cwe"],
                            "owasp": f["owasp"], "confidence": f["confidence"], "detector": f["detector"]},
@@ -54,7 +74,7 @@ def to_sarif(result):
         "runs": [{
             "tool": {"driver": {"name": result["tool"]["name"], "version": result["tool"]["version"],
                                 "informationUri": "https://owasp.org/Top10/", "rules": rules}},
-            "originalUriBaseIds": {"SRCROOT": {"uri": Path(result["target"]).as_uri() + "/"}},
+            "originalUriBaseIds": {"SRCROOT": {"uri": Path(root).resolve().as_uri() + "/"}},
             "results": results,
         }],
     }, indent=2)
