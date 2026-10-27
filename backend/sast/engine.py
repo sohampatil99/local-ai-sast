@@ -24,7 +24,7 @@ from .models import SEVERITY_ORDER, Finding
 from .rules import scan_rules
 from .incremental import changed_since, compare, file_hashes, with_neighbours
 from .secret_scan import _match_line as match_secret
-from .secret_scan import mask, scan_secrets
+from .secret_scan import env_literal_fallback, mask, scan_secrets
 from .taxonomy import enrich
 
 CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1}
@@ -182,6 +182,18 @@ def _parses(file, language, lines):
     return not parser.parse(text.encode("utf-8")).root_node.has_error
 
 
+def _leaked_secret(new_lines):
+    """A short, masked description if an AI replacement still contains a hardcoded secret or fallback."""
+    for line in new_lines:
+        hit = match_secret(line)
+        if hit:
+            return f"{hit[1]}: {mask(hit[3])}"
+        fallback = env_literal_fallback(line)
+        if fallback:
+            return f"environment lookup with fallback {mask(fallback)}"
+    return ""
+
+
 def _diff(file, old, new):
     return "\n".join(difflib.unified_diff(old, new, f"a/{file}", f"b/{file}", lineterm="")) + "\n"
 
@@ -208,6 +220,11 @@ def attach_patches(findings, texts):
         patched = lines[: f.line - 1] + new + lines[f.line:]
         if not _parses(f.file, f.language, patched):
             f.ai["patch_rejected"] = "The suggested fix does not parse, so no patch was produced."
+            continue
+        leak = _leaked_secret(new)
+        if leak:
+            f.ai["patch_rejected"] = ("The suggested fix still hardcodes a secret (" + leak +
+                                      "), so no patch was produced. Read the secret from the environment with no default.")
             continue
         f.ai["patch"] = _mask_secrets(_diff(f.file, lines, patched))
         count += 1
@@ -244,10 +261,23 @@ def _dedupe(findings):
     return list(best.values())
 
 
+def triage_queue(findings):
+    """High and critical findings in the order the AI should look at them.
+
+    Only `limit` findings get a verdict, so the order decides which ones. Within a severity: findings with a
+    proven path from user input first (the verdict is most useful there), then other code findings, then
+    secrets (the rules already decide those; the AI only checks for placeholders). Ties keep file/line order,
+    so the same scan always triages the same findings.
+    """
+    queue = [f for f in findings
+             if f.severity in {"critical", "high"} and f.detector != "deps" and not f.ai]  # reused ones keep theirs
+    queue.sort(key=lambda f: (-SEVERITY_ORDER[f.severity], "User-controlled input reaches" not in f.message,
+                              f.category == "hardcoded_secret", f.file, f.line))
+    return queue
+
+
 def _triage(llm, findings, texts, limit, say):
-    # Findings reused from a baseline scan keep their earlier AI result
-    queue = [f for f in findings if f.severity in {"critical", "high"} and f.detector != "deps" and not f.ai]
-    queue.sort(key=lambda f: -SEVERITY_ORDER[f.severity])
+    queue = triage_queue(findings)
     done = 0
     for i, f in enumerate(queue[:limit], 1):
         say(f"AI triage {i}/{min(limit, len(queue))}: {f.title} in {f.file}:{f.line}")

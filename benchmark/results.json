@@ -96,40 +96,40 @@
       "target": ".venv\\Lib\\site-packages\\fastapi",
       "files": 52,
       "loc": 20193,
-      "seconds": 0.73,
-      "loc_per_second": 27662,
+      "seconds": 0.664,
+      "loc_per_second": 30411,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\starlette",
       "files": 36,
       "loc": 5879,
-      "seconds": 0.361,
-      "loc_per_second": 16285,
+      "seconds": 0.354,
+      "loc_per_second": 16607,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\jinja2",
       "files": 25,
       "loc": 11692,
-      "seconds": 0.47,
-      "loc_per_second": 24877,
+      "seconds": 0.459,
+      "loc_per_second": 25473,
       "findings": 8
     },
     {
       "target": ".venv\\Lib\\site-packages\\httpx",
       "files": 23,
       "loc": 7449,
-      "seconds": 0.343,
-      "loc_per_second": 21717,
+      "seconds": 0.342,
+      "loc_per_second": 21781,
       "findings": 1
     },
     {
       "target": ".venv\\Lib\\site-packages\\pip",
       "files": 403,
       "loc": 113694,
-      "seconds": 5.743,
-      "loc_per_second": 19797,
+      "seconds": 6.079,
+      "loc_per_second": 18703,
       "findings": 18
     }
   ]

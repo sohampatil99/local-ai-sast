@@ -25,7 +25,7 @@
     "new": 0,
     "fixed": 0,
     "unchanged": 13,
-    "seconds_incremental": 0.01,
+    "seconds_incremental": 0.02,
     "seconds_full": 0.01
   },
   {
@@ -39,7 +39,7 @@
     "new": 0,
     "fixed": 0,
     "unchanged": 18,
-    "seconds_incremental": 3.04,
-    "seconds_full": 6.09
+    "seconds_incremental": 3.14,
+    "seconds_full": 6.25
   }
 ]

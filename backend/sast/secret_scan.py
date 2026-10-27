@@ -35,6 +35,27 @@ PLACEHOLDERS = re.compile(
     r"^test|^none$|^null$|^true$|^false$|^password$|^secret$|use a )")
 
 
+# A secret read from the environment with a hardcoded fallback: os.getenv("DB_PASSWORD", "hunter2"),
+# os.environ.get("KEY", "x"), process.env.TOKEN || "x". _match_line skips env lines, so this is separate.
+ENV_FALLBACK_PY = re.compile(
+    r"""(?:getenv|environ\.get)\(\s*(["'])([^"']+)\1\s*,\s*(["'])([^"']+)\3\s*\)""")
+ENV_FALLBACK_JS = re.compile(
+    r"""process\.env(?:\.(\w+)|\[\s*(["'])([^"']+)\2\s*\])\s*(?:\|\||\?\?)\s*(["'`])([^"'`]+)\4""")
+
+
+def env_literal_fallback(line):
+    """The literal fallback if `line` reads a secret-named environment variable with a hardcoded default."""
+    for m in ENV_FALLBACK_PY.finditer(line):
+        name, value = m.group(2), m.group(4)
+        if SECRET_NAME.search(name) and not NOT_SECRET_NAME.search(name):
+            return value
+    for m in ENV_FALLBACK_JS.finditer(line):
+        name, value = m.group(1) or m.group(3), m.group(5)
+        if SECRET_NAME.search(name) and not NOT_SECRET_NAME.search(name):
+            return value
+    return None
+
+
 def _looks_secret(value):
     """Reject identifier-like values ('context', 'eval_context', 'Bearer'): a secret mixes character classes."""
     classes = sum(bool(re.search(p, value)) for p in (r"[a-z]", r"[A-Z]", r"\d", r"[^A-Za-z0-9]"))
