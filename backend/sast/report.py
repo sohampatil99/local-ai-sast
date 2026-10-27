@@ -17,7 +17,8 @@ _env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoesc
 
 
 def to_json(result):
-    return json.dumps(result, indent=2)
+    # fix_patch holds unmasked source lines (git apply needs them); it is exported only as the .patch file
+    return json.dumps({k: v for k, v in result.items() if k != "fix_patch"}, indent=2)
 
 
 def to_sarif(result):

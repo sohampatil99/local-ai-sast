@@ -20,7 +20,8 @@ from .deps import scan_dependencies
 from .discovery import discover
 from .models import SEVERITY_ORDER, Finding
 from .rules import scan_rules
-from .secret_scan import scan_secrets
+from .secret_scan import _match_line as match_secret
+from .secret_scan import mask, scan_secrets
 from .taxonomy import enrich
 
 CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1}
@@ -132,6 +133,15 @@ def _diff(file, old, new):
     return "\n".join(difflib.unified_diff(old, new, f"a/{file}", f"b/{file}", lineterm="")) + "\n"
 
 
+def _mask_secrets(patch):
+    """Mask secrets on every diff line (changed and context), as finding snippets are masked."""
+    out = []
+    for line in patch.split("\n"):
+        hit = match_secret(line[1:]) if line[:1] in {" ", "+", "-"} and not line.startswith(("---", "+++")) else None
+        out.append(line.replace(hit[3], mask(hit[3])) if hit else line)
+    return "\n".join(out)
+
+
 def attach_patches(findings, texts):
     """Turn each AI fixed_code into a unified diff against the real file (finding.ai["patch"])."""
     count = 0
@@ -146,7 +156,7 @@ def attach_patches(findings, texts):
         if not _parses(f.file, f.language, patched):
             f.ai["patch_rejected"] = "The suggested fix does not parse, so no patch was produced."
             continue
-        f.ai["patch"] = _diff(f.file, lines, patched)
+        f.ai["patch"] = _mask_secrets(_diff(f.file, lines, patched))
         count += 1
     return count
 

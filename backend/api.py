@@ -118,6 +118,9 @@ def get_scan(scan_id: str):
     item = store.get(scan_id)
     if item is None:
         raise HTTPException(404, "Scan not found")
+    if item.get("result") and item["result"].get("fix_patch"):
+        # the dashboard only needs to know a patch exists; its unmasked text is served as report.patch
+        item["result"] = {**item["result"], "fix_patch": True}
     return item
 
 
@@ -135,7 +138,7 @@ def get_report(scan_id: str, fmt: str):
     result = item["result"]
     name = f"sast-report-{scan_id}"
     if fmt == "json":
-        return JSONResponse(result, headers={"Content-Disposition": f'attachment; filename="{name}.json"'})
+        return JSONResponse({k: v for k, v in result.items() if k != "fix_patch"}, headers={"Content-Disposition": f'attachment; filename="{name}.json"'})
     if fmt == "sarif":
         return Response(report.to_sarif(result), media_type="application/sarif+json",
                         headers={"Content-Disposition": f'attachment; filename="{name}.sarif"'})
