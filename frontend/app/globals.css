@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette: Static Void #0C0C0C, Electric Citrine #DCFC73, Mist Lilac #E1D2F3.
+   Severity colors are separate semantic colors, never the accent. Values are RGB triplets for Tailwind alpha. */
+:root {
+  --bg: 12 12 12;
+  --surface: 21 21 23;
+  --raised: 30 29 34;
+  --line: 45 43 52;
+  --ink: 244 242 248;
+  --muted: 156 152 168;
+  --citrine: 220 252 115;
+  --lilac: 225 210 243;
+  --lilac-ink: 225 210 243;   /* lilac strong enough for lines and text on this theme's surface */
+  --void: 12 12 12;
+  --accent: 220 252 115;
+  --crit: 255 93 143;
+  --high: 255 122 69;
+  --med: 245 184 61;
+  --low: 108 182 255;
+  --ok: 110 231 160;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: 247 244 251;
+    --surface: 255 255 255;
+    --raised: 242 237 249;
+    --line: 226 219 238;
+    --ink: 12 12 12;
+    --muted: 94 90 107;
+    --accent: 77 107 0;
+    --lilac-ink: 124 92 186;
+    --crit: 194 24 91;
+    --high: 207 68 14;
+    --med: 160 102 0;
+    --low: 28 100 200;
+    --ok: 21 128 61;
+    color-scheme: light;
+  }
+}
+
+html, body { height: 100%; }
+body { background: rgb(var(--bg)); color: rgb(var(--ink)); }
+::selection { background: rgb(var(--citrine)); color: rgb(var(--void)); }
+
+/* The palette card's gradient: void in the top corner, citrine through to lilac */
+.glow {
+  background:
+    radial-gradient(110% 85% at 100% 0%, rgb(var(--void)) 0%, rgb(var(--void)) 18%, transparent 62%),
+    linear-gradient(165deg, rgb(var(--citrine)) 12%, rgb(var(--lilac)) 88%);
+}
+
+:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

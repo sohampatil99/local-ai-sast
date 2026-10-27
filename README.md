@@ -9,13 +9,14 @@ code for logic flaws. No source code leaves the machine.
 
 - **Discovery:** recursive walk, 15 languages, dependency manifests, skips vendored/binary files
 - **Secret detection:** provider patterns (AWS, GitHub, Stripe, Slack, Google, private keys, DB URLs) plus keyword assignments filtered by Shannon entropy; values are masked in reports
-- **Python AST analysis:** import resolution and intra-function taint tracking from request data to sinks (SQL, shell, eval, pickle/yaml, file paths, outbound URLs, HTML responses)
-- **JavaScript/TypeScript AST analysis** with tree-sitter: string-built SQL, `child_process.exec`, `eval`, `innerHTML`, reflected XSS, path traversal, weak hashes
-- **Rule engine** for Java, C/C++, PHP and Go
+- **Python AST analysis:** import resolution and taint tracking from request data to sinks (SQL, shell, eval, pickle/yaml, file paths, outbound URLs, HTML responses). Taint crosses function calls in the same file, and findings name the call chain (`report() -> load_report(report_name)`)
+- **JavaScript/TypeScript and Java AST analysis** with tree-sitter: string-built SQL, command execution, `eval`, `innerHTML`, reflected XSS, path traversal, SSRF, deserialization, weak crypto
+- **Sanitizers and constants:** `int()`/`parseInt`/`Integer.parseInt` are safe everywhere, `shlex.quote` for shell, `html.escape` for HTML, `basename` for paths; strings built only from constants are not reported
+- **Rule engine** for C/C++, PHP, Go and Kotlin
 - **Dependency check** against a bundled advisory table (OWASP A06)
-- **Local AI** (Ollama, `qwen2.5-coder:7b`): verdict, explanation, attack scenario and fix for high/critical findings, plus a review of route files for authorization/logic flaws
-- **Reports:** HTML, PDF, JSON, SARIF 2.1.0; security score and grade
-- **Dashboard:** scan history, severity/OWASP/trend charts, searchable and filterable findings
+- **Local AI** (Ollama, `qwen2.5-coder:7b`): for high/critical findings the model reports where the value comes from and each check before the call; fixed rules decide the verdict and say why. Fixes become a git patch (dropped if the patched file does not parse). Also reviews route files for authorization/logic flaws
+- **Reports:** HTML, PDF, JSON, SARIF 2.1.0, `.patch` (AI fixes); security score and grade. Secrets are masked in snippets and displayed diffs
+- **Dashboard** (Next.js + TypeScript + Tailwind + Recharts, served as static files): scan history, severity/OWASP/trend charts, searchable and filterable findings, verdict reasons, diffs with Copy patch
 - **CI:** `--fail-on high` exit code and an example GitHub Actions workflow
 
 ## Quick start (Windows)
@@ -41,6 +42,17 @@ ollama pull qwen2.5-coder:7b
 ```
 
 If Ollama is not running, scans still complete; the AI step is skipped and the report says so.
+
+### Dashboard development
+
+The built dashboard is committed in `backend/static`, so running it needs only Python. To change it:
+
+```powershell
+cd frontend
+npm ci
+npm run dev      # http://localhost:3000, API calls proxied to the backend on :8000
+npm run build    # static export, copied into backend/static
+```
 
 ### Storage
 
@@ -98,6 +110,8 @@ failures in about 4 minutes on a cold cache, AI text present in the HTML and SAR
 | Fixture false positives | 0 of 46 reported |
 | Real code: FastAPI, Starlette, Jinja2, httpx, pip (~158k LOC) | 25 findings, all genuine dangerous-API uses, none confirmed exploitable |
 | Second fixture `samples/lang-check` (TypeScript, PHP, Go, C++, Stripe/Slack/Google keys) | 20/20, 0 false positives |
+| Data-flow fixture `samples/flow-check` (bugs through helper functions + 12 safe look-alikes) | 9/9, 0 false positives, 9/9 traced (before cross-function taint: 2/9, 12 false positives) |
+| Real code re-run after cross-function taint (~159k LOC) | 27 findings; the 2 new ones are correct `sys.argv -> open()` traces in a pip helper, not exploitable |
 | Speed (static analysis) | pip (113k LOC) in 3.3-5.8 s depending on machine load |
 
 The fixture was written alongside the rules, so its score shows the detectors work as designed,
@@ -110,10 +124,15 @@ token every time, the role trusted from the request body only sometimes, because
 between runs; 13/15 suggested code fixes correct on manual inspection (the two Java fixes were not).
 
 False-positive check (`samples/fp-check`: a constant SQL table name and an all-zero dummy AWS key in a
-test): with the original triage prompt the model confirmed both as real; after adding guidance to check
-whether data is attacker-controlled and whether secrets are placeholders, it dismissed the dummy key but
-still confirmed the table name, while still confirming all 15 real fixture bugs. The prompt was tuned
-after seeing these cases, so this is a weak test.
+test): both are now cleared by the static rules, so they never reach the AI.
+
+AI triage on unseen cases (`samples/ai-holdout`, 6 real + 6 safe, every one flagged by the static scanner;
+`benchmark/run_ai_holdout.py`): the original prompt (`benchmark/prompts/triage_v1.txt`) called all 12 real
+(6/12), and a prompt with more guidance did the same. The current method, where the model extracts facts
+and rules decide, scores 11/12; the miss is a realpath containment check. A second set
+(`samples/ai-holdout-2`, 6/6) exposed a context-window bug that was then fixed, so it is not an independent
+test. All cases were written by the author. AI fixes on the main fixture: 12 patches, all apply with
+`git apply`, 8 correct on manual review.
 
 Input methods tested: local path, Git URL (clone, scan, clean-up), ZIP upload (same results as a folder
 scan), and rejection of zip-slip archives (`../` paths) and invalid archives.
@@ -128,14 +147,16 @@ backend/
   api.py         FastAPI (scans, history, reports, uploads) + static dashboard
   storage.py     PostgreSQL / SQLite
   cli.py         scan | serve
-  static/        dashboard (HTML/CSS/JS, Chart.js vendored for offline use)
+  static/        built dashboard (static export of frontend/)
+frontend/        Next.js dashboard source (app/, components/, lib/)
 benchmark/       annotated fixture, ground truth, benchmark runner
 samples/vuln-app intentionally vulnerable test project
 ```
 
 ## Limitations
 
-- Taint tracking is intra-procedural (no cross-function or cross-file flow) and has no sanitizer model
-- Java, C/C++, PHP and Go use regex rules, not AST analysis
+- Taint tracking crosses functions in one file, not files; JavaScript taint is tracked by variable name per file
+- C/C++, PHP, Go and Kotlin use regex rules, not AST analysis
+- AI patches are suggestions: 4 of 12 on the fixture were wrong despite parsing
 - The dependency advisory table is small and bundled; it is not a full vulnerability database
 - AI verdicts are advisory: findings are never hidden, only excluded from the score

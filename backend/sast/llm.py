@@ -7,7 +7,8 @@ from pathlib import Path
 
 import httpx
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+# 127.0.0.1, not localhost: on Windows localhost tries IPv6 first and Ollama's IPv4-only listener adds ~2 s per call
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 DEFAULT_MODEL = os.environ.get("SAST_MODEL", "qwen2.5-coder:7b")
 CACHE_PATH = Path(__file__).resolve().parent.parent / "data" / "llm_cache.json"
 REVIEW_CATEGORIES = {"access_control", "auth", "logic", "data_exposure", "insecure_config"}

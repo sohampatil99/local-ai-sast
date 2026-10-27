@@ -17,8 +17,8 @@ CONFIG_NAMES = {".env", "dockerfile", ".npmrc", ".pypirc"}
 MANIFESTS = {"requirements.txt", "pyproject.toml", "pipfile", "setup.py", "package.json",
              "pom.xml", "build.gradle", "go.mod", "cargo.toml", "composer.json", "gemfile"}
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "env", "__pycache__", "dist", "build",
-             ".next", ".idea", ".vscode", "target", "vendor", ".mypy_cache", ".pytest_cache",
-             "coverage", ".tox", "site-packages"}
+             ".next", "_next", ".idea", ".vscode", "target", "vendor", ".mypy_cache", ".pytest_cache",
+             "coverage", ".tox", "site-packages"}  # _next = Next.js build output (minified bundles)
 MAX_BYTES = 1_000_000
 
 
