@@ -1,0 +1,79 @@
+{
+  "summary": {
+    "prompt": "sast/llm.py",
+    "model": "qwen2.5-coder:7b",
+    "real_confirmed": {
+      "cases": 3,
+      "correct": 3,
+      "needs_review": 0
+    },
+    "safe_dismissed": {
+      "cases": 3,
+      "correct": 3,
+      "needs_review": 0
+    },
+    "accuracy": "6/6"
+  },
+  "cases": [
+    {
+      "file": "exports.py",
+      "line": 20,
+      "label": "safe",
+      "title": "OS Command Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The 'kind' value is checked against a fixed set of allowed values ('pdf' and 'csv'), which mitigates the risk of injection. However, the use of 'os.system' with user-controlled input remains a potential risk."
+    },
+    {
+      "file": "exports.py",
+      "line": 29,
+      "label": "real",
+      "title": "OS Command Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input 'kind' is directly used in the os.system() call without further sanitization. Although the prefix 'pdf' is checked, it does not guarantee that the input is safe from injection attacks."
+    },
+    {
+      "file": "exports.py",
+      "line": 39,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input is checked against a regex pattern that allows only lowercase letters, digits, and underscores. However, this does not prevent SQL injection if the input is used directly in the SQL query without further sanitization."
+    },
+    {
+      "file": "exports.py",
+      "line": 49,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input is not properly sanitized before being used in the SQL query, which could lead to SQL injection."
+    },
+    {
+      "file": "formats.js",
+      "line": 10,
+      "label": "safe",
+      "title": "SQL Injection",
+      "verdict": "false_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The value of 'mime' is derived from user input (req.query.f) and then used directly in a SQL query. This can lead to SQL injection if 'mime' contains malicious SQL code."
+    },
+    {
+      "file": "TicketServlet.java",
+      "line": 14,
+      "label": "real",
+      "title": "SQL Injection",
+      "verdict": "true_positive",
+      "confidence": 0.8,
+      "correct": true,
+      "explanation": "The input 'id' is directly used in an SQL query without proper sanitization. Although there is a length check, it does not prevent SQL injection if the input is manipulated to include malicious SQL code."
+    }
+  ]
+}

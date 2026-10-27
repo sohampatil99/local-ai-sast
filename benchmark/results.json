@@ -86,45 +86,50 @@
       "xss": "2/2"
     }
   },
+  "bom_check": {
+    "findings_plain": 52,
+    "findings_with_bom": 52,
+    "same": true
+  },
   "performance": [
     {
       "target": ".venv\\Lib\\site-packages\\fastapi",
       "files": 52,
       "loc": 20193,
-      "seconds": 0.637,
-      "loc_per_second": 31700,
+      "seconds": 0.73,
+      "loc_per_second": 27662,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\starlette",
       "files": 36,
       "loc": 5879,
-      "seconds": 0.305,
-      "loc_per_second": 19275,
+      "seconds": 0.361,
+      "loc_per_second": 16285,
       "findings": 0
     },
     {
       "target": ".venv\\Lib\\site-packages\\jinja2",
       "files": 25,
       "loc": 11692,
-      "seconds": 0.5,
-      "loc_per_second": 23384,
+      "seconds": 0.47,
+      "loc_per_second": 24877,
       "findings": 8
     },
     {
       "target": ".venv\\Lib\\site-packages\\httpx",
       "files": 23,
       "loc": 7449,
-      "seconds": 0.327,
-      "loc_per_second": 22780,
+      "seconds": 0.343,
+      "loc_per_second": 21717,
       "findings": 1
     },
     {
       "target": ".venv\\Lib\\site-packages\\pip",
       "files": 403,
       "loc": 113694,
-      "seconds": 5.379,
-      "loc_per_second": 21137,
+      "seconds": 5.743,
+      "loc_per_second": 19797,
       "findings": 18
     }
   ]

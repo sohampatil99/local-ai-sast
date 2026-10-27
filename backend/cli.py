@@ -20,7 +20,7 @@ LEVELS = ["low", "medium", "high", "critical"]
 def cmd_scan(args):
     baseline = None
     if args.baseline:
-        baseline = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
+        baseline = json.loads(Path(args.baseline).read_text(encoding="utf-8-sig"))
     if args.incremental and baseline is None:
         print("--incremental needs --baseline <previous report.json>", file=sys.stderr)
         return 2

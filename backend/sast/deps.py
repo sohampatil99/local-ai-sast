@@ -58,7 +58,7 @@ def scan_dependencies(root, manifests):
 
 def _requirements(path):
     out = []
-    for i, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+    for i, line in enumerate(path.read_text(encoding="utf-8-sig", errors="ignore").splitlines(), 1):
         m = re.match(r"\s*([A-Za-z0-9_.\-]+)\s*(==|>=|~=)\s*([0-9][\w.]*)", line)
         if m:
             out.append((m.group(1), m.group(3), i))
@@ -66,7 +66,7 @@ def _requirements(path):
 
 
 def _package_json(path):
-    text = path.read_text(encoding="utf-8", errors="ignore")
+    text = path.read_text(encoding="utf-8-sig", errors="ignore")
     data = json.loads(text)
     lines = text.splitlines()
     out = []

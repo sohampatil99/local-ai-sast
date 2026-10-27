@@ -53,6 +53,20 @@ def _per_category(expected, matched):
     return {k: f"{h}/{t}" for k, (h, t) in sorted(out.items())}
 
 
+def bom_check():
+    """A file saved with a UTF-8 byte-order mark (common on Windows) must be analyzed like any other."""
+    import shutil
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp) / "app"
+        shutil.copytree(FIXTURE, work)
+        plain = len(scan(work)["findings"])
+        app = work / "app.py"
+        app.write_bytes(b"\xef\xbb\xbf" + app.read_bytes())
+        with_bom = len(scan(work)["findings"])
+    return {"findings_plain": plain, "findings_with_bom": with_bom, "same": plain == with_bom}
+
+
 def performance(path):
     result = scan(path)
     loc = result["repo"]["total_loc"]
@@ -77,6 +91,7 @@ def main():
     if (ROOT / "expected_review1.json").exists():
         # Review 1 next steps: input crossing files (Python, JS) and the Go analyzer
         report["accuracy_review1"] = accuracy(ROOT.parent / "samples" / "review1-check", "expected_review1.json")
+    report["bom_check"] = bom_check()
     report["performance"] = [performance(Path(d)) for d in args.perf]
     Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))

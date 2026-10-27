@@ -13,7 +13,7 @@ def _database_url():
     if os.environ.get("SAST_DATABASE_URL"):
         return os.environ["SAST_DATABASE_URL"]
     if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+        for line in ENV_FILE.read_text(encoding="utf-8-sig").splitlines():
             key, _, value = line.partition("=")
             if key.strip() == "SAST_DATABASE_URL":
                 return value.strip()

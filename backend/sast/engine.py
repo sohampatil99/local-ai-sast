@@ -53,7 +53,8 @@ def scan(target, ai=False, ai_review=False, model=None, ai_limit=15, progress=No
     texts, sources = {}, {}
     for sf in repo.files:
         try:
-            sources[sf.rel] = Path(sf.path).read_text(encoding="utf-8", errors="ignore")
+            # utf-8-sig: files saved on Windows often start with a BOM, which Python's parser rejects
+            sources[sf.rel] = Path(sf.path).read_text(encoding="utf-8-sig", errors="ignore")
         except OSError:
             continue
         texts[sf.rel] = sources[sf.rel].splitlines()
