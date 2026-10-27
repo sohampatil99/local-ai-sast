@@ -189,7 +189,7 @@ def _verdict(data, lines, category=""):
         return "false_positive", checks, \
             f"The value passes a complete check before the call: {c['code']} ({c['kind'].replace('_', ' ')})."
     if origin == "request":
-        weak = [c for c in checks if c["in_code"]]
+        weak = [c for c in checks if c["in_code"] and c["kind"] != "other"]  # "other" is often the assignment itself
         why = "Request data reaches the call " + \
             (f"and the only checks ({', '.join(c['kind'].replace('_', ' ') for c in weak)}) can be bypassed."
              if weak else "with no check in between.")
