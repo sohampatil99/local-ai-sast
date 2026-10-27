@@ -163,7 +163,8 @@ function toggleDetail(tr, f) {
   d.className = "detail";
   const ai = f.ai && f.ai.explanation ? `
     <div class="ai-box"><strong>AI analysis</strong> (${esc(f.ai.model || "")}${f.ai.confidence != null ? `, ${Math.round(f.ai.confidence * 100)}% confident` : ""})
-      <div>${esc(f.ai.explanation)}</div>
+      ${f.ai.reason ? `<div><strong>Why this verdict:</strong> ${esc(f.ai.reason)}</div>` : ""}
+      <div>${f.ai.reason ? "<em>Model notes:</em> " : ""}${esc(f.ai.explanation)}</div>
       ${f.ai.exploit_scenario ? `<div><em>Attack:</em> ${esc(f.ai.exploit_scenario)}</div>` : ""}
       ${f.ai.fix ? `<div><em>Fix:</em> ${esc(f.ai.fix)}</div>` : ""}
       ${f.ai.checks && f.ai.checks.length ? `<div><em>Checks found:</em> ${f.ai.checks.map((c) => `<code>${esc(c.code)}</code> (${esc(c.kind.replace("_", " "))})`).join("; ")}</div>` : ""}
@@ -219,6 +220,24 @@ $("zip").onchange = async () => {
 };
 
 ["search", "fSeverity", "fCategory", "fDetector"].forEach((id) => $(id).addEventListener("input", renderRows));
+
+// Links like /?scan=<id>&finding=<file:line> open a scan with that finding expanded
+async function openFromLink() {
+  const q = new URLSearchParams(location.search);
+  if (!q.get("scan")) return loadHistory();
+  await loadHistory(q.get("scan"));
+  const want = q.get("finding");
+  if (!want) return;
+  const wait = setInterval(() => {
+    const rows = [...document.querySelectorAll("#rows tr.row")];
+    const tr = rows.find((r) => r.querySelector("code") && r.querySelector("code").textContent === want);
+    if (!tr) return;
+    clearInterval(wait);
+    tr.click();
+    tr.scrollIntoView({ block: "start" });
+  }, 200);
+}
+
 loadHealth();
-loadHistory();
+openFromLink();
 setInterval(loadHealth, 15000);

@@ -112,9 +112,10 @@ class LocalLLM:
         data = self._generate(self.triage_prompt.format_map(dict(
             file=finding.file, language=finding.language, context=context, title=finding.title,
             cwe=finding.cwe, owasp=finding.owasp, message=finding.message, dataflow=_dataflow(finding))))
-        verdict, checks = _verdict(data, lines, finding.category)
+        verdict, checks, reason = _verdict(data, lines, finding.category)
         return {
-            "model": self.model, "verdict": verdict, "origin": str(data.get("origin", "")), "checks": checks,
+            "model": self.model, "verdict": verdict, "reason": reason,
+            "origin": str(data.get("origin", "")), "checks": checks,
             "confidence": _float(data.get("confidence")),
             "explanation": str(data.get("explanation", "")).strip(),
             "exploit_scenario": str(data.get("exploit_scenario", "")).strip(),
@@ -167,7 +168,7 @@ def _verdict(data, lines, category=""):
     """
     if "verdict" in data and "origin" not in data:  # older prompt that asks for a verdict directly
         v = str(data.get("verdict", "needs_review")).lower()
-        return (v if v in {"true_positive", "false_positive", "needs_review"} else "needs_review"), []
+        return (v if v in {"true_positive", "false_positive", "needs_review"} else "needs_review"), [], ""
     source = "\n".join(lines)
     squash = lambda s: "".join(str(s).split())
     checks = []
@@ -176,15 +177,24 @@ def _verdict(data, lines, category=""):
             checks.append({"code": str(c["code"])[:200], "kind": str(c.get("kind", "other")),
                            "in_code": squash(c["code"]) in squash(source)})
     if category == "hardcoded_secret":  # a secret is a constant by definition; the question is whether it is real
-        return ("false_positive" if data.get("placeholder") is True else "true_positive"), checks
+        if data.get("placeholder") is True:
+            return "false_positive", checks, "The value is a placeholder or test value, not a real credential."
+        return "true_positive", checks, "The value looks like a real credential committed to source code."
     origin = str(data.get("origin", "unknown")).lower()
     if origin in {"generated", "constant"}:
-        return "false_positive", checks
-    if any(c["in_code"] and c["kind"] in COMPLETE_DEFENCES for c in checks):
-        return "false_positive", checks
+        return "false_positive", checks, f"The value is {origin} in the code, so an attacker cannot control it."
+    complete = [c for c in checks if c["in_code"] and c["kind"] in COMPLETE_DEFENCES]
+    if complete:
+        c = complete[0]
+        return "false_positive", checks, \
+            f"The value passes a complete check before the call: {c['code']} ({c['kind'].replace('_', ' ')})."
     if origin == "request":
-        return "true_positive", checks
-    return "needs_review", checks
+        weak = [c for c in checks if c["in_code"]]
+        why = "Request data reaches the call " + \
+            (f"and the only checks ({', '.join(c['kind'].replace('_', ' ') for c in weak)}) can be bypassed."
+             if weak else "with no check in between.")
+        return "true_positive", checks, why
+    return "needs_review", checks, "The code shown is not enough to tell where the value comes from."
 
 
 def _dataflow(finding):
