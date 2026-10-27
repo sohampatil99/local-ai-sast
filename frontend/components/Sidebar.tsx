@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useRef, useState } from "react";
 import { api, lastParts, shortTime } from "@/lib/api";
 import type { ScanListItem } from "@/lib/types";
@@ -24,7 +24,7 @@ export function NewScan({ onStarted }: { onStarted: (id: string) => void }) {
 
   return (
     <section className="rounded-card border border-line bg-surface p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">New scan</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-lilacInk">New scan</h2>
       <form onSubmit={(e) => { e.preventDefault(); run(() => api.start(target, ai, review)); }} className="grid gap-3">
         <label htmlFor="target" className="text-xs text-muted">Local folder or Git URL</label>
         <input id="target" value={target} onChange={(e) => setTarget(e.target.value)} required autoComplete="off"
@@ -60,7 +60,7 @@ export function History({ items, current, onOpen }:
   { items: ScanListItem[]; current?: string; onOpen: (id: string) => void }) {
   return (
     <section className="rounded-card border border-line bg-surface p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Scan history</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-lilacInk">Scan history</h2>
       {items.length === 0 && <p className="text-sm text-muted">No scans yet. Start one above.</p>}
       <ul className="grid max-h-[55vh] gap-1 overflow-auto">
         {items.map((s) => (

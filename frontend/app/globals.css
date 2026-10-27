@@ -6,11 +6,11 @@
    Severity colors are separate semantic colors, never the accent. Values are RGB triplets for Tailwind alpha. */
 :root {
   --bg: 12 12 12;
-  --surface: 21 21 23;
-  --raised: 30 29 34;
-  --line: 45 43 52;
+  --surface: 27 23 36;        /* panels carry a lilac tint */
+  --raised: 38 33 51;
+  --line: 68 58 90;
   --ink: 244 242 248;
-  --muted: 156 152 168;
+  --muted: 185 172 206;
   --citrine: 220 252 115;
   --lilac: 225 210 243;
   --lilac-ink: 225 210 243;   /* lilac strong enough for lines and text on this theme's surface */
@@ -25,12 +25,12 @@
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: 247 244 251;
+    --bg: 243 237 251;
     --surface: 255 255 255;
-    --raised: 242 237 249;
-    --line: 226 219 238;
+    --raised: 248 243 254;
+    --line: 216 200 238;
     --ink: 12 12 12;
-    --muted: 94 90 107;
+    --muted: 92 78 118;
     --accent: 77 107 0;
     --lilac-ink: 124 92 186;
     --crit: 194 24 91;
@@ -43,7 +43,20 @@
 }
 
 html, body { height: 100%; }
-body { background: rgb(var(--bg)); color: rgb(var(--ink)); }
+/* A soft glow of both palette colors behind the page */
+body {
+  color: rgb(var(--ink));
+  background:
+    radial-gradient(1100px 620px at 0% 0%, rgb(var(--lilac) / 0.13), transparent 62%),
+    radial-gradient(900px 560px at 100% 100%, rgb(var(--citrine) / 0.09), transparent 60%),
+    rgb(var(--bg));
+  background-attachment: fixed;
+}
+
+/* The top bar is Static Void in both themes */
+.topbar { background: rgb(var(--void) / 0.92); border-color: rgb(var(--lilac) / 0.25); color: rgb(244 242 248); }
+.topbar .sub { color: rgb(185 172 206); }
+.topbar .chip { border: 1px solid rgb(var(--lilac) / 0.45); color: rgb(244 242 248); }
 ::selection { background: rgb(var(--citrine)); color: rgb(var(--void)); }
 
 /* The palette card's gradient: void in the top corner, citrine through to lilac */

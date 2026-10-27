@@ -10,7 +10,7 @@ export default {
       colors: {
         bg: v("bg"), surface: v("surface"), raised: v("raised"), line: v("line"),
         ink: v("ink"), muted: v("muted"),
-        citrine: v("citrine"), lilac: v("lilac"), void: v("void"), accent: v("accent"),
+        citrine: v("citrine"), lilac: v("lilac"), lilacInk: v("lilac-ink"), void: v("void"), accent: v("accent"),
         crit: v("crit"), high: v("high"), med: v("med"), low: v("low"), ok: v("ok"),
       },
       fontFamily: {

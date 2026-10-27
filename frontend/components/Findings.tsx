@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { Fragment, useMemo, useState } from "react";
 import type { Finding } from "@/lib/types";
 import { Panel, SeverityPill, VerdictBadge } from "./ui";
@@ -46,7 +46,7 @@ export function Findings({ findings, initialOpen }: { findings: Finding[]; initi
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
+            <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.08em] text-lilacInk">
               <th className="px-2 py-2 font-medium">Severity</th>
               <th className="px-2 py-2 font-medium">Finding</th>
               <th className="px-2 py-2 font-medium">Location</th>

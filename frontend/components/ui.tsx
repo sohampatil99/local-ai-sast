@@ -8,7 +8,7 @@ export function Panel({ title, aside, children, className = "" }:
     <section className={`rounded-card border border-line bg-surface p-4 min-w-0 ${className}`}>
       {(title || aside) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          {title && <h3 className="text-sm font-semibold">{title}</h3>}
+          {title && <h3 className="text-sm font-semibold text-lilacInk">{title}</h3>}
           {aside}
         </div>
       )}

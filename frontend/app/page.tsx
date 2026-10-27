@@ -76,26 +76,26 @@ export default function Dashboard() {
   const r = scan?.result;
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-line bg-bg/85 backdrop-blur">
+      <header className="topbar sticky top-0 z-10 border-b backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <ShieldMark />
             <div>
               <div className="font-semibold leading-tight">Local AI SAST</div>
-              <div className="text-xs text-muted">Offline security scanning with a local LLM</div>
+              <div className="sub text-xs">Offline security scanning with a local LLM</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             {healthError ? (
               <span className="rounded-full border border-crit/50 px-3 py-1 text-crit">Backend unreachable: start it with start.bat</span>
             ) : !health ? (
-              <span className="rounded-full border border-line px-3 py-1 text-muted">Checking the local AI...</span>
+              <span className="chip sub rounded-full px-3 py-1">Checking the local AI...</span>
             ) : (
               <>
                 <span className="rounded-full bg-citrine px-3 py-1 font-semibold text-void">Code stays on this machine</span>
-                <span className="rounded-full border border-line px-3 py-1">Database: {health.database}</span>
+                <span className="chip rounded-full px-3 py-1">Database: {health.database}</span>
                 <span title={health.llm.detail}
-                  className={`rounded-full border px-3 py-1 ${health.llm.available ? "border-lilac/60 bg-lilac/15" : "border-med/60 text-med"}`}>
+                  className={`rounded-full px-3 py-1 ${health.llm.available ? "chip bg-lilac/15" : "border border-med/60 text-med"}`}>
                   {health.llm.available ? `AI: ${health.llm.model}` : "AI unavailable"}
                 </span>
               </>
